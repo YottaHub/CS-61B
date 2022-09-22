@@ -294,10 +294,8 @@ public class Repository {
      *  @return collected and ordered commit info
      */
     private static String verboseLog(Commit head) {
-        StringBuilder log = new StringBuilder(head.log());
-        head = (Commit) fetch(head.getParent());
+        StringBuilder log = new StringBuilder();
         while (head != null) {
-            log.append("\n\n");
             log.append(head.log());
             head = (Commit) fetch(head.getParent());
         }

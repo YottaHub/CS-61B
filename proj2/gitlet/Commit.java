@@ -2,6 +2,7 @@ package gitlet;
 
 import java.io.File;
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /** Represents a gitlet commit object.
@@ -73,9 +74,12 @@ public class Commit implements Serializable, Dumpable {
         if (parents[1] != null)
             log += "Merge: " + this.parents[0] + "\t" + this.parents[1] + "\n";
         // add time stamp
-        log += "Date: " + this.timeStamp.toString() + "\n";
+        // format: "Date: \w\w\w \w\w\w \d+ \d\d:\d\d:\d\d \d\d\d\d [-+]\d\d\d\d"
+        String pattern = "E MMM d HH:mm:ss yyyy Z";
+        SimpleDateFormat dateFormat = new SimpleDateFormat(pattern);
+        log += "Date: " + dateFormat.format(this.timeStamp) + "\n";
         // add commit message
-        log += this.message;
+        log += this.message + "\n\n";
         return log;
     }
 
