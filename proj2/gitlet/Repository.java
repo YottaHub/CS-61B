@@ -52,7 +52,7 @@ public class Repository {
     /** The master branch. */
     public static File MASTER = join(REFS_DIR, "master");
     /** Collect global commits. */
-    public static File GLOBAL = join(REFS_DIR, "global");
+    public static File GLOBAL = join(GITLET_DIR, "global");
     /** The file stores the directory of current branch */
     public static File HEAD = join(GITLET_DIR, "HEAD");
     /** The staging area. */
