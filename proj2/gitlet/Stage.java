@@ -24,6 +24,10 @@ public class Stage extends BlobTree {
         return this.mapping;
     }
 
+    public Map<String, String> getDeleted() {
+        return this.deleted;
+    }
+
     /** Return the SHA-1 value of the target file. */
     public String getBlobID(String filename) {
         return this.mapping.get(filename);

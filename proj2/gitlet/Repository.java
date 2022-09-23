@@ -143,8 +143,7 @@ public class Repository {
         // Fetch the blob tree of the parent commit if not empty
         BlobTree tracked = new BlobTree();
         if (parent.getTree() != null && !parent.getTree().equals("")) {
-            File trackedDir = join(OBJECT_DIR, parent.getTree());
-            tracked.load(trackedDir);
+            tracked = (BlobTree) fetch(parent.getTree());
         }
         // Union the staging area and tracked files from parent commit
         tracked.merge(stage);
@@ -297,7 +296,8 @@ public class Repository {
         }
         // Write all files in the checked branch into current working directory
         CommitTree checkedTree = readObject(branchPath, CommitTree.class);
-        for (Map.Entry<String, String> p: checkedTree.getMapping().entrySet()) {
+        for (Map.Entry<String, String> p: ((BlobTree) fetch(((Commit) fetch(checkedTree.getLast())).
+                getTree())).getMapping().entrySet()) {
             writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
         }
         // Clear the staging area
@@ -388,9 +388,82 @@ public class Repository {
     /** Displays what branches currently exist, and marks the current
      * branch with a `*`. Also displays what files have been staged for
      * addition or removal.
+     * Format:
+     * === Branches ===
+     * *master
+     * other-branch
+     *
+     * === Staged Files ===
+     * wug.txt
+     * wug2.txt
+     *
+     * === Removed Files ===
+     * goodbye.txt
+     *
+     * === Modifications Not Staged For Commit ===
+     * junk.txt (deleted)
+     * wug3.txt (modified)
+     *
+     * === Untracked Files ===
+     * random.stuff
+     *
      */
     public static void status() {
-        String coverUp = "";
+        String coverUp = "=== Branches ===\n";
+        String branchPart = "";
+        List<String> branchList = plainFilenamesIn(REFS_DIR);
+        // Compose branch part
+        for (String branch: branchList) {
+            if(isHead(branch)) {
+                // move current branch to the head and star
+                branchPart = "*%s%n".formatted(branch) + branchPart;
+            } else {
+                branchPart += "%s%n".formatted(branch);
+            }
+        }
+        // Compose staged part
+        coverUp += branchPart + "\n=== Staged Files ===\n";
+        Stage stage = readObject(STAGE, Stage.class);
+        for (Map.Entry<String, String> p: stage.getMapping().entrySet()) {
+            coverUp += "%s%n".formatted(p.getKey());
+        }
+        // Compose removed part
+        coverUp += "\n=== Removed Files ===\n";
+        for (Map.Entry<String, String> p: stage.getDeleted().entrySet()) {
+            coverUp += "%s%n".formatted(p.getKey());
+        }
+        // All working files in current working directory
+        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
+        // Compose modified part
+        coverUp += "\n=== Modifications Not Staged For Commit ===\n";
+        Commit head = (Commit) fetchHead();
+        BlobTree workingTree = (BlobTree) fetch(head.getTree());
+        if (workingTree == null) {
+            workingTree = new BlobTree();
+        }
+        workingTree.merge(stage);
+        for (Map.Entry<String, String> p: workingTree.getMapping().entrySet()) {
+            if (!workingFileList.contains(p.getKey())) {
+                coverUp += "%s (deleted)%n".formatted(p.getKey());
+            }
+        }
+        for (String file: workingFileList) {
+            Blob temp = new Blob(file);
+            if (workingTree.isContained(file) && (workingTree.getBlobID(temp.getFile()) == null ||
+                    !workingTree.getBlobID(temp.getFile()).equals(temp.getID()))) {
+                coverUp += "%s (modified)%n".formatted(file);
+            }
+        }
+        // Compose untracked part
+        coverUp += "\n=== Untracked Files ===\n";
+        for (String file: workingFileList) {
+            // If a working file is untracked in the current branch
+            // and would be overwritten by the checkout
+            if (!workingTree.isContained(file)) {
+                coverUp += "%s%n".formatted(file);
+            }
+        }
+        System.out.println(coverUp);
     }
 
 
