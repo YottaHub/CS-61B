@@ -3,6 +3,7 @@ package gitlet;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /** Represent a gitlet commit tree object.
  *  All tree nodes of a commit tree are commits only.
@@ -67,6 +68,17 @@ public class CommitTree implements Tree {
     /** Return the SHA-1 value of this commit tree. */
     public String getID() {
         return this.Id;
+    }
+
+    /** Find all commits in this tree with same commit message. */
+    public String findMsg(String msg) {
+        String ids = "";
+        for (Map.Entry<String, String> p : this.mapping.entrySet()) {
+            if (p.getValue().equals(msg)) {
+                ids += p.getKey() + "\n";
+            }
+        }
+        return ids;
     }
 
     /** Compose a verbose and tree-structure version of log on this tree

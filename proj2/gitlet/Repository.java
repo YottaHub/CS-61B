@@ -2,6 +2,8 @@ package gitlet;
 
 import java.io.File;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import static gitlet.Utils.*;
 
@@ -53,6 +55,8 @@ public class Repository {
 
     /** The master branch. */
     public static File MASTER = join(REFS_DIR, "master");
+    /** Collect global commits. */
+    public static File GLOBAL = join(REFS_DIR, "global");
     /** The file stores the directory of current branch */
     public static File HEAD = join(GITLET_DIR, "HEAD");
     /** The staging area. */
@@ -84,14 +88,18 @@ public class Repository {
         // Writes a log for this commit in logs/master by default
         File oup = join(LOGS_DIR, "master");
         Utils.writeContents(oup, c.log());
+        // Rich the global commit zone
+        CommitTree global = Utils.readObject(GLOBAL, CommitTree.class);
+        global.add(c);
+        Utils.writeObject(GLOBAL, global);
     }
 
     /** Update the current branch after a commit. */
     private static void update(Commit c) {
         // combine .gitlet and the branch refs in HEAD
         File path = join(GITLET_DIR, readContentsAsString(HEAD));
-        // load it as parent commit
-        CommitTree branch = (CommitTree) new CommitTree().load(path);
+        // load it as parent commit, using some tricky way
+        CommitTree branch = readObject(path, CommitTree.class);
         branch.add(c);
         writeObject(path, branch);
     }
@@ -106,9 +114,9 @@ public class Repository {
         // Convert input file to blob object
         Blob b = new Blob(checkFile(filename, "File does not exist."));
         Stage stage = Utils.readObject(STAGE, Stage.class);
-        // Check if the file is added
+        // Adding a tracked and identical file has no effect
         if (join(OBJECT_DIR, b.getID()).exists()) {
-            exitWithPrint("File %s has added or tracked.".formatted(b.getFile()));
+            return;
         }
         // Store the blob
         b.store(OBJECT_DIR);
@@ -161,6 +169,10 @@ public class Repository {
         // The staging area is cleared after a commit
         stage.empty();
         writeObject(STAGE, stage);
+        // Rich the global commit zone
+        CommitTree global = readObject(GLOBAL, CommitTree.class);
+        global.add(c);
+        Utils.writeObject(GLOBAL, global);
     }
 
     /** Unstage the file if it is currently staged for addition. If the file
@@ -202,12 +214,19 @@ public class Repository {
     /** Print out logs from the Head Commit. */
     public static void log() {
          Commit head = (Commit) fetchHead();
-         System.out.println(verboseLog(head));
+         System.out.print(verboseLog(head));
     }
 
     /** Print out logs for all commits. */
     public static void globalLog() {
-
+        CommitTree global = (CommitTree) new CommitTree().load(GLOBAL);
+        HashMap<String, String> mapping = global.getMapping();
+        StringBuilder ids = new StringBuilder();
+        for (Map.Entry<String, String> p : mapping.entrySet()) {
+            Commit c = (Commit) fetch(p.getKey());
+            ids.append(c.log());
+        }
+        System.out.print(ids);
     }
 
     /** Takes the version of the file as it exists in the head commit
@@ -252,6 +271,21 @@ public class Repository {
         }
     }
 
+    /** Prints out the ids of all commits that have the given
+     *  commit message, one per line.
+     *
+     *  @param msg commit message to find
+     */
+    public static void find(String msg) {
+        CommitTree global = Utils.readObject(GLOBAL, CommitTree.class);
+        String ids = global.findMsg(msg);
+        if (ids.equals("")) {
+            exitWithPrint("Found no commit with that message.");
+        } else {
+            System.out.print(ids);
+        }
+    }
+
 
     /* ***************************************************************
      *******************    Internal Methods    **********************
@@ -278,6 +312,8 @@ public class Repository {
         writeObject(MASTER, new CommitTree());
         // Create the staging area
         writeObject(STAGE, new Stage());
+        // Create global commit collecting zone
+        writeObject(GLOBAL, new CommitTree());
     }
 
     /** Check if the filename points at an existed file,

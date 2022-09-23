@@ -61,6 +61,11 @@ public class Main {
                     checkout(args[1], args[3]);
                 } else exitWithPrint("Incorrect operands.");
             }
+            case "find" -> {
+                checkRequirement();
+                validateNumArgs(args, 2);
+                find(args[1]);
+            }
             default -> exitWithPrint("No command with that name exists.");
         }
     }
