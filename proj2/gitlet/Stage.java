@@ -57,14 +57,14 @@ public class Stage extends BlobTree {
 
     /** Unstage a file in the staging area. */
     public String unstage(String target) {
-        String Id = this.mapping.get(target);
+        String id = this.mapping.get(target);
         this.mapping.remove(target);
-        return Id;
+        return id;
     }
 
     /** Add deleted file to the staging area. */
-    public void addDeletion(String target, String Id) {
-        this.deleted.put(target, Id);
+    public void addDeletion(String target, String id) {
+        this.deleted.put(target, id);
     }
 
     /** Check if the staging area is changed. */
@@ -81,9 +81,17 @@ public class Stage extends BlobTree {
         String log = "tree ";
         // add ID
         log += this.Id + "\n";
+        log += "staged:\n";
         if (this.mapping != null) {
             // add one line log for all dumpables in this tree
             for (Map.Entry<String, String> p : this.mapping.entrySet()) {
+                log += "*\t" + p.getValue() + "\t" + p.getKey() + "\n";
+            }
+        }
+        log += "deleted:\n";
+        if (this.deleted != null) {
+            // add one line log for all dumpables in this tree
+            for (Map.Entry<String, String> p : this.deleted.entrySet()) {
                 log += "*\t" + p.getValue() + "\t" + p.getKey() + "\n";
             }
         }

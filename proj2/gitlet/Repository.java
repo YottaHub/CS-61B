@@ -3,6 +3,7 @@ package gitlet;
 import java.io.File;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static gitlet.Utils.*;
@@ -183,11 +184,11 @@ public class Repository {
         Stage stage = Utils.readObject(STAGE, Stage.class);
         if (stage.isContained(filename)) {
             // If this file is found in staging area, unstage it
-            String Id = stage.unstage(filename);
+            String id = stage.unstage(filename);
             // Save the adapted staging area
             writeObject(STAGE, stage);
             // Delete the unstaged file
-            join(OBJECT_DIR, Id).delete();
+            join(OBJECT_DIR, id).delete();
         } else {
             // Fetch the current tracked blob tree
             Commit current = (Commit) fetchHead();
@@ -201,6 +202,7 @@ public class Repository {
                 exitWithPrint(msg);
             }
         }
+        Utils.writeObject(STAGE, stage);
     }
 
     /** Print out logs from the Head Commit. */
@@ -249,6 +251,21 @@ public class Repository {
      *  @param filename the file to check out
      */
     public static void checkout(String commitID, String filename) {
+        // for short-uid cases
+        if (commitID.length() < 40) {
+            List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
+            int cnt = 0;
+            for (String f : fileList) {
+                if (f.startsWith(commitID)) {
+                    commitID = f;
+                    cnt += 1;
+                }
+            }
+            if (cnt > 1) {
+                // cannot narrow to one specific commit
+                exitWithPrint("No commit with that id exists.");
+            }
+        }
         Commit checked = (Commit) fetch(commitID);
         if (checked == null) {
             exitWithPrint("No commit with that id exists.");

@@ -56,6 +56,7 @@ public class Main {
                         exitWithPrint("Incorrect operands.");
                     checkout(args[2]);
                 } else if (args.length == 4) {
+                    // java gitlet.Main checkout [commit id] -- [file name]
                     if (!args[2].equals("--"))
                         exitWithPrint("Incorrect operands.");
                     checkout(args[1], args[3]);
