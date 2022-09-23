@@ -271,7 +271,8 @@ public class Repository {
      *  @param branchName the branch to be the head
      */
     public static void checkoutBranch(String branchName) {
-        if (isHead(branchName)) {
+        Stage stage = readObject(STAGE, Stage.class);
+        if (isHead(branchName) && !stage.isChanged()) {
             exitWithPrint("No need to checkout the current branch.");
         }
         File branchPath = join(REFS_DIR, branchName);
@@ -301,7 +302,6 @@ public class Repository {
             writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
         }
         // Clear the staging area
-        Stage stage = readObject(STAGE, Stage.class);
         stage.empty();
         writeObject(STAGE, stage);
         // Move Head to the new branch
@@ -385,6 +385,14 @@ public class Repository {
         }
         // Delete this branch only, don't do anything else
         branchPath.delete();
+    }
+
+    /** Displays what branches currently exist, and marks the current
+     * branch with a `*`. Also displays what files have been staged for
+     * addition or removal.
+     */
+    public static void status() {
+        String coverUp = "";
     }
 
 

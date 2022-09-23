@@ -88,6 +88,12 @@ public class Main {
                 validateNumArgs(args, 2);
                 removeBranch(args[1]);
             }
+            case "status" -> {
+                // java gitlet.Main status
+                checkRequirement();
+                validateNumArgs(args, 1);
+                status();
+            }
             default -> exitWithPrint("No command with that name exists.");
         }
     }
