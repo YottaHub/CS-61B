@@ -271,8 +271,7 @@ public class Repository {
      *  @param branchName the branch to be the head
      */
     public static void checkoutBranch(String branchName) {
-        Stage stage = readObject(STAGE, Stage.class);
-        if (isHead(branchName) && !stage.isChanged()) {
+        if (isHead(branchName)) {
             exitWithPrint("No need to checkout the current branch.");
         }
         File branchPath = join(REFS_DIR, branchName);
@@ -302,6 +301,7 @@ public class Repository {
             writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
         }
         // Clear the staging area
+        Stage stage = readObject(STAGE, Stage.class);
         stage.empty();
         writeObject(STAGE, stage);
         // Move Head to the new branch
@@ -361,8 +361,6 @@ public class Repository {
             CommitTree branch = new CommitTree(head);
             // Save the new branch
             writeObject(branchPath, branch);
-            // Move Head to the new branch
-            writeContents(HEAD, "refs/%s".formatted(branchName));
         }
     }
 
