@@ -33,6 +33,7 @@ public class Stage extends BlobTree {
     /** Empty this blob tree. */
     public void empty() {
         this.mapping = new HashMap<>();
+        this.deleted = new HashMap<>();
         this.Id = "";
     }
 
@@ -58,7 +59,6 @@ public class Stage extends BlobTree {
     public String unstage(String target) {
         String Id = this.mapping.get(target);
         this.mapping.remove(target);
-        this.deleted.put(target, Id);
         return Id;
     }
 
@@ -69,7 +69,7 @@ public class Stage extends BlobTree {
 
     /** Check if the staging area is changed. */
     public boolean isChanged() {
-        return !(this.mapping.isEmpty() || this.deleted.isEmpty());
+        return (!this.mapping.isEmpty() || !this.deleted.isEmpty());
     }
 
     /** Compose a verbose and tree-structure version of log on this tree

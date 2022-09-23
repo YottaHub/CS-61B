@@ -44,8 +44,6 @@ public class Repository {
     public static final File CWD = new File(System.getProperty("user.dir"));
     /** The .gitlet directory. */
     public static final File GITLET_DIR = join(CWD, ".gitlet");
-    /** The log directory. */
-    public static final File LOGS_DIR = join(GITLET_DIR, "logs");
     /** The refs directory. */
     public static final File REFS_DIR = join(GITLET_DIR, "refs");
     /** The OBJECT directory where stores all objects' content */
@@ -85,9 +83,6 @@ public class Repository {
         // Branch is a CommitTree object that stores a commit history
         // Stores the latest commit in the master branch by default
         update(c);
-        // Writes a log for this commit in logs/master by default
-        File oup = join(LOGS_DIR, "master");
-        Utils.writeContents(oup, c.log());
         // Rich the global commit zone
         CommitTree global = Utils.readObject(GLOBAL, CommitTree.class);
         global.add(c);
@@ -113,13 +108,10 @@ public class Repository {
     public static void add(String filename){
         // Convert input file to blob object
         Blob b = new Blob(checkFile(filename, "File does not exist."));
-        Stage stage = Utils.readObject(STAGE, Stage.class);
-        // Adding a tracked and identical file has no effect
-        if (join(OBJECT_DIR, b.getID()).exists()) {
-            return;
-        }
         // Store the blob
         b.store(OBJECT_DIR);
+        Stage stage = Utils.readObject(STAGE, Stage.class);
+        // Adding a tracked and identical file has no effect
         // Put the blob into the stage
         stage.add(b);
         // Save the stage
@@ -304,8 +296,6 @@ public class Repository {
         REFS_DIR.mkdir();
         // Create object directory
         OBJECT_DIR.mkdir();
-        // Create logs directory
-        LOGS_DIR.mkdir();
         // Create HEAD
         writeObject(HEAD, "refs/master");
         // Create the master branch
