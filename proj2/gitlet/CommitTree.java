@@ -10,13 +10,13 @@ import java.util.Map;
  *
  *  @author Y. Y. Y
  */
-public class CommitTree implements tree {
+public class CommitTree implements Tree {
     /** Record <Key Commit ID, Value commit message> pairs. */
-    private HashMap<String, String> Mapping = new HashMap<>();
+    private HashMap<String, String> mapping = new HashMap<>();
     /** The latest commit of this branch. */
     private String head;
     /** SHA-1 value of the commit tree. */
-    private String ID;
+    private String Id;
 
     /** New a commit tree object. * Buggy
      *
@@ -25,9 +25,9 @@ public class CommitTree implements tree {
     public CommitTree(Commit... commits) {
         for (Commit c: commits) {
             this.head = c.getID();
-            this.Mapping.put(c.getID(), c.getMsg());
+            this.mapping.put(c.getID(), c.getMsg());
         }
-        this.ID = Utils.sha1(Utils.serialize(this));
+        this.Id = Utils.sha1(Utils.serialize(this));
     }
 
     /** New an empty commit tree. */
@@ -38,9 +38,9 @@ public class CommitTree implements tree {
      * @param c the added commit
      */
     public void add(Commit c) {
-        this.Mapping.put(c.getID(), c.getMsg());
+        this.mapping.put(c.getID(), c.getMsg());
         this.head = c.getID();
-        this.ID = Utils.sha1(Utils.serialize(this));
+        this.Id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Return the ID of the latest commit in this tree. */
@@ -49,24 +49,24 @@ public class CommitTree implements tree {
     }
 
     public HashMap<String, String> getMapping() {
-        return this.Mapping;
+        return this.mapping;
     }
 
     /** Empty this commit tree. */
     public void empty() {
-        this.Mapping = new HashMap<>();
-        this.ID = "";
+        this.mapping = new HashMap<>();
+        this.Id = "";
         this.head = "";
     }
 
     /** Check if the mapping of this tree is empty. */
     public boolean isEmpty() {
-        return this.Mapping == null || this.Mapping.isEmpty();
+        return this.mapping == null || this.mapping.isEmpty();
     }
 
     /** Return the SHA-1 value of this commit tree. */
     public String getID() {
-        return this.ID;
+        return this.Id;
     }
 
     /** Compose a verbose and tree-structure version of log on this tree
@@ -78,16 +78,18 @@ public class CommitTree implements tree {
         String log = "tree ";
         // add ID
         log += this.getID() + "\n";
-        if (this.Mapping != null)
+        if (this.mapping != null) {
             // add one line log for all dumpables in this tree
-            for (Map.Entry<String, String> p: this.Mapping.entrySet())
+            for (Map.Entry<String, String> p : this.mapping.entrySet()) {
                 log += "*\t" + p.getValue() + "\t" + p.getKey() + "\n";
+            }
+        }
         return log;
     }
 
     /** Store this tree and generate its SHA-1 value. */
-    public void store(File storePath){
-        Utils.writeObject(Utils.join(storePath, this.ID), this);
+    public void store(File storePath) {
+        Utils.writeObject(Utils.join(storePath, this.Id), this);
     }
 
     /** Load a tree object by its ID and return it for assignment.

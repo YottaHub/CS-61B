@@ -18,7 +18,7 @@ public class Commit implements Serializable, Dumpable {
     // Note: Simplified for two parents at most in this project
     private String[] parents = new String[2];
     /** The SHA-1 value of this Commit. */
-    private String ID;
+    private String Id;
     /** The ID of the tracked blob tree. */
     private String tree;
 
@@ -35,7 +35,7 @@ public class Commit implements Serializable, Dumpable {
         this.message = msg;
         this.parents[0] = p;
         this.tree = t;
-        this.ID = Utils.sha1(Utils.serialize(this));
+        this.Id = Utils.sha1(Utils.serialize(this));
     }
 
     /** New an empty commit. */
@@ -48,7 +48,7 @@ public class Commit implements Serializable, Dumpable {
 
     /** Return the SHA-1 value of this commit. */
     public String getID() {
-        return this.ID;
+        return this.Id;
     }
 
     /** Return the message of this commit. */
@@ -69,7 +69,7 @@ public class Commit implements Serializable, Dumpable {
         // header of a commit object
         String log = "===\ncommit ";
         // add ID
-        log += this.ID + "\n";
+        log += this.Id + "\n";
         // add merge info
         if (parents[1] != null)
             log += "Merge: " + this.parents[0] + "\t" + this.parents[1] + "\n";
@@ -84,9 +84,9 @@ public class Commit implements Serializable, Dumpable {
     }
 
     /** Store this commit and generate its SHA-1 value. */
-    public void store(File storePath){
+    public void store(File storePath) {
         // all dumpable objects must store in "$REPO_DIR/.gitlet/objects/../..."
-        Utils.writeObject(Utils.join(storePath, this.ID), this);
+        Utils.writeObject(Utils.join(storePath, this.Id), this);
     }
 
     /** Load a Commit object by its ID and return it for assignment.

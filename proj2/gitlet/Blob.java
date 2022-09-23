@@ -8,11 +8,11 @@ import java.nio.charset.StandardCharsets;
  *  BLOB records the history of ONE file in current gitlet
  *  working directory by the file name.
  */
-public class blob implements Serializable, Dumpable {
+public class Blob implements Serializable, Dumpable {
     /** Tracked file of this blob. */
     private final String file;
     /** SHA-1 value of this blob. */
-    private final String ID;
+    private final String Id;
     /** The file content of this blob. */
     private final byte[] content;
     /** The current working directory. */
@@ -24,15 +24,15 @@ public class blob implements Serializable, Dumpable {
      *
      * @param filename a tracked file
      */
-    public blob(String filename) {
+    public Blob(String filename) {
         this.file = filename;
         this.content = Utils.readContents(Utils.join(CWD, filename));
-        this.ID = Utils.sha1(Utils.serialize(this));
+        this.Id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Return the SHA-1 value of this blob. */
     public String getID() {
-        return this.ID;
+        return this.Id;
     }
 
     /** Return the name of related file. */
@@ -53,15 +53,15 @@ public class blob implements Serializable, Dumpable {
         // header of a blob object
         String log = "blob ";
         // add ID
-        log += this.ID + "\n" ;
+        log += this.Id + "\n";
         // add content
         log += "------\n" + this.getContent();
         return log;
     }
 
     /** Store this blob and generate its SHA-1 value. */
-    public void store(File storePath){
-        Utils.writeObject(Utils.join(storePath, this.ID), this);
+    public void store(File storePath) {
+        Utils.writeObject(Utils.join(storePath, this.Id), this);
     }
 
     /** Load a blob object by its ID and return it for assignment.
@@ -70,7 +70,7 @@ public class blob implements Serializable, Dumpable {
      *  @return the stored Commit object
      */
     public Dumpable load(File f) {
-        return Utils.readObject(f, blob.class);
+        return Utils.readObject(f, Blob.class);
     }
 
     /** Print useful information about this object on System.out. */

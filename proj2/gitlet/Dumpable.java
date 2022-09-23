@@ -18,7 +18,7 @@ import java.io.Serializable;
  * +- tree (getMapping(), empty(), isEmpty())
  *    |
  *    + BlobTree (add(blob), merge(BlobTree))
- *    |	|
+ *    | |
  *    |	+- Stage (unstage(File), addDeleted(File),
  *    |           findModified(CWD), findDeleted(CWD))
  *    |

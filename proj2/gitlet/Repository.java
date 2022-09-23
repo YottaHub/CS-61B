@@ -1,8 +1,6 @@
 package gitlet;
 
 import java.io.File;
-import java.io.IOException;
-import java.sql.Blob;
 import java.util.Date;
 
 import static gitlet.Utils.*;
@@ -17,11 +15,9 @@ public class Repository {
         |
         +- objects (directory)
         |  |
-        |  +- commits (directory)
-        |  |  |
-        |  |  +- 8b0d5 (commit, message = "init commit", tree = "")
-        |  |  |
-        |  |  +- bc04f (commit, message = "add v1.txt", tree = "5840f")
+        |  + 8b0d5 (commit, message = "init commit", tree = "")
+        |  |
+        |  + bc04f (commit, message = "add v1.txt", tree = "5840f")
         |  |
         |  + 9ee02 (blob, content = "gitlet version 1")
         |  |
@@ -108,11 +104,15 @@ public class Repository {
      */
     public static void add(String filename){
         // Convert input file to blob object
-        blob b = new blob(checkFile(filename, "File does not exist."));
+        Blob b = new Blob(checkFile(filename, "File does not exist."));
+        Stage stage = Utils.readObject(STAGE, Stage.class);
+        // Check if the file is added
+        if (join(OBJECT_DIR, b.getID()).exists()) {
+            exitWithPrint("File %s has added or tracked.".formatted(b.getFile()));
+        }
         // Store the blob
         b.store(OBJECT_DIR);
-        // Declare a stage and put the blob in
-        Stage stage = Utils.readObject(STAGE, Stage.class);
+        // Put the blob into the stage
         stage.add(b);
         // Save the stage
         // Note: Differ from the @code{store}
@@ -131,15 +131,17 @@ public class Repository {
      */
     public static void commit(String msg) {
         // Every commit must have a non-blank message
-        if (msg.equals(""))
+        if (msg.equals("")) {
             exitWithPrint("Please enter a commit message.");
+        }
         // Fetch the parent commit
         Commit parent = (Commit) fetchHead();
         // Convert index to tree
         // If no files have been staged, abort
         Stage stage = Utils.readObject(STAGE, Stage.class);
-        if (stage.isEmpty())
+        if (stage.isEmpty()) {
             exitWithPrint("No changes added to the commit.");
+        }
         // Fetch the blob tree of the parent commit if not empty
         BlobTree tracked = new BlobTree();
         if (parent.getTree() != null && !parent.getTree().equals("")) {
@@ -168,29 +170,33 @@ public class Repository {
      *
      * @param filename file to remove
      */
-     public static void remove(String filename) {
-         // Error message of this method
-         String msg = "No reason to remove the file.";
-         // Check if the file exist
-         checkFile(filename, msg);
-         // Check if the file is staged
-         Stage stage = Utils.readObject(STAGE, Stage.class);
-         if (stage.isContained(filename)) {
-             // If this file is found in staging area, unstage it
-             stage.unstage(filename);
-             // save the adapted staging area
-             writeObject(STAGE, stage);
-         } else {
-             Commit current = (Commit) fetchHead();
-             BlobTree tracked = (BlobTree) fetch(current.getTree());
-             if (tracked != null && tracked.isContained(filename)) {
-                 // If the file is in the current commit, delete it from the working directory
-                 stage.addDeletion(filename, tracked.getBlobID(filename));
-                 restrictedDelete(join(CWD, filename));
-             } else {
-                 exitWithPrint(msg);
-             }
-         }
+    public static void remove(String filename) {
+        // Error message of this method
+        String msg = "No reason to remove the file.";
+        // Check if the file exist
+        checkFile(filename, msg);
+        // Check if the file is staged
+        Stage stage = Utils.readObject(STAGE, Stage.class);
+        if (stage.isContained(filename)) {
+            // If this file is found in staging area, unstage it
+            String Id = stage.unstage(filename);
+            // Save the adapted staging area
+            writeObject(STAGE, stage);
+            // Delete the unstaged file
+            join(OBJECT_DIR, Id).delete();
+        } else {
+            // Fetch the current tracked blob tree
+            Commit current = (Commit) fetchHead();
+            BlobTree tracked = (BlobTree) fetch(current.getTree());
+            if (tracked != null && tracked.isContained(filename)) {
+                // If the file is in the current commit, delete it from the working directory
+                stage.addDeletion(filename, tracked.getBlobID(filename));
+                restrictedDelete(join(CWD, filename));
+            } else {
+                // File not found
+                exitWithPrint(msg);
+            }
+        }
     }
 
     /** Print out logs from the Head Commit. */
@@ -215,7 +221,7 @@ public class Repository {
         Commit head = (Commit) fetchHead();
         BlobTree tree = (BlobTree) fetch(head.getTree());
         if (tree != null && tree.isContained(filename)) {
-            blob b = (blob) fetch(tree.getBlobID(filename));
+            Blob b = (Blob) fetch(tree.getBlobID(filename));
             assert b != null;
             writeContents(join(CWD, filename), b.getContent());
         } else {
@@ -233,10 +239,12 @@ public class Repository {
      */
     public static void checkout(String commitID, String filename) {
         Commit checked = (Commit) fetch(commitID);
-        if (checked == null)    exitWithPrint("No commit with that id exists.");
+        if (checked == null) {
+            exitWithPrint("No commit with that id exists.");
+        }
         BlobTree tree = (BlobTree) fetch(checked.getTree());
         if (tree != null && tree.isContained(filename)) {
-            blob b = (blob) fetch(tree.getBlobID(filename));
+            Blob b = (Blob) fetch(tree.getBlobID(filename));
             assert b != null;
             writeContents(join(CWD, filename), b.getContent());
         } else {
@@ -253,10 +261,11 @@ public class Repository {
     /** Set up persistence for a gitlet repository. */
     private static void buildRepo() {
         // Initialize a new gitlet working directory
-        if (!GITLET_DIR.mkdir())
+        if (!GITLET_DIR.mkdir()) {
             // Note: Never re-initialize an existing repository
-            throw Utils.error("A Gitlet version-control system already " +
-                    "exists in the current directory.", "");
+            exitWithPrint("A Gitlet version-control system already " +
+                    "exists in the current directory.");
+        }
         // Create refs directory
         REFS_DIR.mkdir();
         // Create object directory
@@ -281,10 +290,12 @@ public class Repository {
     private static String checkFile(String filename, String msg) {
         File filePath = Utils.join(CWD, filename);
         // If the file does not exist, abort
-        if (!filePath.exists())
+        if (!filePath.exists()) {
             exitWithPrint(msg);
-        else
+        }
+        else {
             return filename;
+        }
         return null;
     }
 
@@ -309,12 +320,17 @@ public class Repository {
         return new Commit().load(parentDir);
     }
 
-    /** Fetch a dumpable object. */
-    private static Dumpable fetch(String ID) {
-        if (ID.equals(""))  return null;
-        File path = join(OBJECT_DIR, ID);
-        if (!path.exists()) return null;
-        return readObject(join(OBJECT_DIR, ID), Dumpable.class);
+    /** Fetch a dumpable object.
+     *
+     * @param filename sha-1 value of the object to fetch
+     */
+    private static Dumpable fetch(String filename) {
+        if (filename.equals(""))  return null;
+        File path = join(OBJECT_DIR, filename);
+        if (!path.exists()) {
+            return null;
+        }
+        return readObject(join(OBJECT_DIR, filename), Dumpable.class);
     }
 
     /** Check if .gitlet directory exist in current working directory */
@@ -323,13 +339,14 @@ public class Repository {
     }
 
     /**
-     * Print MESSAGE and exits with error code 1
+     * Print MESSAGE and exits with error code 0
      *
      * @param msg message to print
      */
     public static void exitWithPrint(String msg) {
-        if (msg != null && !msg.equals(""))
+        if (msg != null && !msg.equals("")) {
             System.out.println(msg);
+        }
         System.exit(0);
     }
 }
