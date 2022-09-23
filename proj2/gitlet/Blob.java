@@ -45,6 +45,11 @@ public class Blob implements Serializable, Dumpable {
         return new String(this.content, StandardCharsets.UTF_8);
     }
 
+    /** Return the content of this blob as a byte array. */
+    public byte[] getBytes() {
+        return this.content;
+    }
+
     /** Compose a very verbose log of this blob
      *
      * @return a string contains useful info about this blob

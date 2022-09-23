@@ -3,7 +3,6 @@ package gitlet;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /** Represent a gitlet commit tree object.
  *  All tree nodes of a commit tree are commits only.

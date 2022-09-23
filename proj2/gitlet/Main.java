@@ -21,6 +21,7 @@ public class Main {
         String cmd = args[0];
         switch (cmd) {
             case "init" -> {
+                // java gitlet.Main init
                 validateNumArgs(args, 1);
                 init();
             }
@@ -35,16 +36,19 @@ public class Main {
                 commit(args[1]);
             }
             case "rm" -> {
+                // java gitlet.Main rm [file name]
                 checkRequirement();
                 validateNumArgs(args, 2);
                 remove(args[1]);
             }
             case "log" -> {
+                // java gitlet.Main log
                 checkRequirement();
                 validateNumArgs(args, 1);
                 log();
             }
             case "global-log" -> {
+                // java gitlet.Main global-log
                 checkRequirement();
                 validateNumArgs(args, 1);
                 globalLog();
@@ -52,6 +56,7 @@ public class Main {
             case "checkout" -> {
                 checkRequirement();
                 if (args.length == 3) {
+                    // java gitlet.Main checkout -- [file name]
                     if (!args[1].equals("--"))
                         exitWithPrint("Incorrect operands.");
                     checkout(args[2]);
@@ -60,12 +65,28 @@ public class Main {
                     if (!args[2].equals("--"))
                         exitWithPrint("Incorrect operands.");
                     checkout(args[1], args[3]);
+                } else if (args.length == 2) {
+                    // java gitlet.Main checkout [branch name]
+                    checkoutBranch(args[1]);
                 } else exitWithPrint("Incorrect operands.");
             }
             case "find" -> {
+                // java gitlet.Main find [commit message]
                 checkRequirement();
                 validateNumArgs(args, 2);
                 find(args[1]);
+            }
+            case "branch" -> {
+                // java gitlet.Main branch [branch name]
+                checkRequirement();
+                validateNumArgs(args, 2);
+                branch(args[1]);
+            }
+            case "rm-branch" -> {
+                // java gitlet.Main rm-branch [branch name]
+                checkRequirement();
+                validateNumArgs(args, 2);
+                removeBranch(args[1]);
             }
             default -> exitWithPrint("No command with that name exists.");
         }

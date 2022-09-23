@@ -1,10 +1,7 @@
 package gitlet;
 
 import java.io.File;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static gitlet.Utils.*;
 
@@ -252,24 +249,11 @@ public class Repository {
      */
     public static void checkout(String commitID, String filename) {
         // for short-uid cases
-        if (commitID.length() < 40) {
-            List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
-            int cnt = 0;
-            for (String f : fileList) {
-                if (f.startsWith(commitID)) {
-                    commitID = f;
-                    cnt += 1;
-                }
-            }
-            if (cnt > 1) {
-                // cannot narrow to one specific commit
-                exitWithPrint("No commit with that id exists.");
-            }
-        }
-        Commit checked = (Commit) fetch(commitID);
-        if (checked == null) {
+        commitID = autoComplete(commitID);
+        if (commitID == null) {
             exitWithPrint("No commit with that id exists.");
         }
+        Commit checked = (Commit) fetch(commitID);
         BlobTree tree = (BlobTree) fetch(checked.getTree());
         if (tree != null && tree.isContained(filename)) {
             Blob b = (Blob) fetch(tree.getBlobID(filename));
@@ -278,6 +262,72 @@ public class Repository {
         } else {
             exitWithPrint("File does not exist in that commit.");
         }
+    }
+
+    /** Takes all files in the commit at the head of the given branch,
+     *  and puts them in the working directory, overwriting the versions
+     *  of the files that are already there if they exist.
+     *
+     *  @param branchName the branch to be the head
+     */
+    public static void checkoutBranch(String branchName) {
+        if (isHead(branchName)) {
+            exitWithPrint("No need to checkout the current branch.");
+        }
+        File branchPath = join(REFS_DIR, branchName);
+        if (!branchPath.exists()) {
+            exitWithPrint("No such branch exists.");
+        }
+        Commit head = (Commit) fetchHead();
+        BlobTree workingTree = (BlobTree) fetch(head.getTree());
+        // All working files in current working directory
+        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
+        for (String file: workingFileList) {
+            // If a working file is untracked in the current branch
+            // and would be overwritten by the checkout
+            if (!workingTree.isContained(file)) {
+                exitWithPrint("There is an untracked file in the way; " +
+                        "delete it, or add and commit it first.");
+            }
+        }
+        // Any files that are tracked in the current branch but are not
+        // present in the checked-out branch are deleted.
+        for (String file: workingFileList) {
+            new File(file).delete();
+        }
+        // Write all files in the checked branch into current working directory
+        CommitTree checkedTree = readObject(branchPath, CommitTree.class);
+        for (Map.Entry<String, String> p: checkedTree.getMapping().entrySet()) {
+            writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
+        }
+        // Clear the staging area
+        Stage stage = readObject(STAGE, Stage.class);
+        stage.empty();
+        writeObject(STAGE, stage);
+        // Move Head to the new branch
+        writeContents(HEAD, "refs/%s".formatted(branchName));
+    }
+
+    /** Complete a short-uid to a full-length one. */
+    private static String autoComplete(String shortId) {
+        List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
+        int cnt = 0;
+        if (fileList.contains(shortId)) {
+            // if it is not short
+            cnt = 1;
+        } else {
+            for (String full : fileList) {
+                if (full.startsWith(shortId)) {
+                    shortId = full;
+                    cnt += 1;
+                }
+            }
+        }
+        if (cnt != 1) {
+            // cannot narrow to one specific commit
+            return null;
+        }
+        return shortId;
     }
 
     /** Prints out the ids of all commits that have the given
@@ -293,6 +343,48 @@ public class Repository {
         } else {
             System.out.print(ids);
         }
+    }
+
+    /** Creates a new branch with the given name, and points it at the
+     * current head commit.
+     *
+     * @param branchName name of the new branch
+     */
+    public static void branch(String branchName) {
+        File branchPath = join(REFS_DIR, branchName);
+        if (branchPath.exists()) {
+            // If a branch with the given name already exists, exits
+            exitWithPrint("A branch with that name already exists.");
+        } else {
+            // Create a new commit tree starts at the current commit
+            Commit head = (Commit) fetchHead();
+            CommitTree branch = new CommitTree(head);
+            // Save the new branch
+            writeObject(branchPath, branch);
+            // Move Head to the new branch
+            writeContents(HEAD, "refs/%s".formatted(branchName));
+        }
+    }
+
+    /** Check if this branch is identical to current branch. */
+    private static boolean isHead(String branchName) {
+        String current = readContentsAsString(HEAD);
+        return current.equals("refs/" + branchName);
+    }
+
+    /** Deletes the branch with the given name. */
+    public static void removeBranch(String branchName) {
+        // Check if it is current working branch
+        if (isHead(branchName)) {
+            exitWithPrint("Cannot remove the current branch.");
+        }
+        // Check if a branch named branchName exists
+        File branchPath = join(REFS_DIR, branchName);
+        if (!branchPath.exists()) {
+            exitWithPrint("A branch with that name does not exist.");
+        }
+        // Delete this branch only, don't do anything else
+        branchPath.delete();
     }
 
 

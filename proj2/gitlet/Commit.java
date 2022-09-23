@@ -41,6 +41,20 @@ public class Commit implements Serializable, Dumpable {
     /** New an empty commit. */
     public Commit() {}
 
+    /**
+     * Add this commit to another branch.
+     *
+     * @return if a relative branch is successfully linked
+     */
+    public boolean setRelative(String relative) {
+        if (this.parents[1] == null) {
+            this.parents[1] = relative;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     /** Return the related tree. */
     public String getTree() {
         return this.tree;
@@ -59,6 +73,11 @@ public class Commit implements Serializable, Dumpable {
     /** Return the SHA-1 value of the first parent. */
     public String getParent() {
         return this.parents[0];
+    }
+
+    /** Return the SHA-1 value of the second parent. */
+    public String getRelative() {
+        return this.parents[1];
     }
 
     /** Compose a verbose version of log on this commit
