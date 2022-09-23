@@ -443,7 +443,7 @@ public class Repository {
         }
         workingTree.merge(stage);
         for (Map.Entry<String, String> p: workingTree.getMapping().entrySet()) {
-            if (!workingFileList.contains(p.getKey())) {
+            if (!workingFileList.contains(p.getKey()) && !stage.getDeleted().containsKey(p.getKey())) {
                 coverUp += "%s (deleted)%n".formatted(p.getKey());
             }
         }
