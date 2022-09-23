@@ -147,7 +147,7 @@ public class Repository {
         // Convert index to tree
         // If no files have been staged, abort
         Stage stage = Utils.readObject(STAGE, Stage.class);
-        if (stage.isEmpty()) {
+        if (!stage.isChanged()) {
             exitWithPrint("No changes added to the commit.");
         }
         // Fetch the blob tree of the parent commit if not empty

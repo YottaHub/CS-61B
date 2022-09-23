@@ -67,6 +67,11 @@ public class Stage extends BlobTree {
         this.deleted.put(target, Id);
     }
 
+    /** Check if the staging area is changed. */
+    public boolean isChanged() {
+        return !(this.mapping.isEmpty() || this.deleted.isEmpty());
+    }
+
     /** Compose a verbose and tree-structure version of log on this tree
      *
      *  @return a string represent the content and structure on this tree
