@@ -16,7 +16,7 @@ public class CommitTree implements Tree {
     /** The latest commit of this branch. */
     private String head;
     /** SHA-1 value of the commit tree. */
-    private String Id;
+    private String id;
 
     /** New a commit tree object. * Buggy
      *
@@ -27,11 +27,11 @@ public class CommitTree implements Tree {
             this.head = c.getID();
             this.mapping.put(c.getID(), c.getMsg());
         }
-        this.Id = Utils.sha1(Utils.serialize(this));
+        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** New an empty commit tree. */
-    public CommitTree() {}
+    public CommitTree() { }
 
     /** Add a commit to this tree and replace if overlapped.
      *
@@ -40,7 +40,7 @@ public class CommitTree implements Tree {
     public void add(Commit c) {
         this.mapping.put(c.getID(), c.getMsg());
         this.head = c.getID();
-        this.Id = Utils.sha1(Utils.serialize(this));
+        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Return the ID of the latest commit in this tree. */
@@ -48,6 +48,7 @@ public class CommitTree implements Tree {
         return this.head;
     }
 
+    /** Return the commits map of this tree. */
     public HashMap<String, String> getMapping() {
         return this.mapping;
     }
@@ -55,18 +56,18 @@ public class CommitTree implements Tree {
     /** Empty this commit tree. */
     public void empty() {
         this.mapping = new HashMap<>();
-        this.Id = "";
+        this.id = "";
         this.head = "";
     }
 
     /** Check if the mapping of this tree is empty. */
     public boolean isEmpty() {
-        return this.mapping == null || this.mapping.isEmpty();
+        return this.mapping.isEmpty();
     }
 
     /** Return the SHA-1 value of this commit tree. */
     public String getID() {
-        return this.Id;
+        return this.id;
     }
 
     /** Find all commits in this tree with same commit message. */
@@ -100,7 +101,7 @@ public class CommitTree implements Tree {
 
     /** Store this tree and generate its SHA-1 value. */
     public void store(File storePath) {
-        Utils.writeObject(Utils.join(storePath, this.Id), this);
+        Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 
     /** Load a tree object by its ID and return it for assignment.

@@ -10,14 +10,14 @@ public class Stage extends BlobTree {
     /** Record the deleted file before next commit in stage. */
     private Map<String, String> deleted = new HashMap<>();
     /** SHA-1 value for this blob tree. */
-    private String Id;
+    private String id;
 
     /** New an empty stage. */
-    public Stage() {}
+    public Stage() { }
 
     /** Return the SHA-1 value of this commit tree. */
     public String getID() {
-        return this.Id;
+        return this.id;
     }
 
     public HashMap<String, String> getMapping() {
@@ -38,12 +38,12 @@ public class Stage extends BlobTree {
     public void empty() {
         this.mapping = new HashMap<>();
         this.deleted = new HashMap<>();
-        this.Id = "";
+        this.id = "";
     }
 
     /** Check if there is any element in this tree. */
     public boolean isEmpty() {
-        return this.mapping == null || this.mapping.isEmpty();
+        return this.mapping.isEmpty() && this.deleted.isEmpty();
     }
 
     /** Check if a dumpable object exists in this tree by its ID. */
@@ -84,7 +84,7 @@ public class Stage extends BlobTree {
         // header of a tree object
         String log = "tree ";
         // add ID
-        log += this.Id + "\n";
+        log += this.id + "\n";
         log += "staged:\n";
         if (this.mapping != null) {
             // add one line log for all dumpables in this tree
@@ -104,8 +104,8 @@ public class Stage extends BlobTree {
 
     /** Store this tree and generate its SHA-1 value. */
     public void store(File storePath) {
-        this.Id = Utils.sha1(Utils.serialize(this));
-        Utils.writeObject(Utils.join(storePath, this.Id), this);
+        this.id = Utils.sha1(Utils.serialize(this));
+        Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 
     /** Load a tree object by its ID and return it for assignment.

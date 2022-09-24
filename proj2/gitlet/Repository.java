@@ -50,13 +50,13 @@ public class Repository {
     /* FILES */
 
     /** The master branch. */
-    public static File MASTER = join(REFS_DIR, "master");
+    private static final File MASTER = join(REFS_DIR, "master");
     /** Collect global commits. */
-    public static File GLOBAL = join(GITLET_DIR, "global");
+    private static final File GLOBAL = join(GITLET_DIR, "global");
     /** The file stores the directory of current branch */
-    public static File HEAD = join(GITLET_DIR, "HEAD");
+    private static final File HEAD = join(GITLET_DIR, "HEAD");
     /** The staging area. */
-    public static File STAGE = join(GITLET_DIR, "index");
+    private static final File STAGE = join(GITLET_DIR, "index");
 
     /* ***************************************************************
        ********************    Main Methods    ***********************
@@ -102,7 +102,7 @@ public class Repository {
      *
      *  @param filename the file adds to the staging area
      */
-    public static void add(String filename){
+    public static void add(String filename) {
         // Convert input file to blob object
         Blob b = new Blob(checkFile(filename, "File does not exist."));
         // Store the blob
@@ -202,8 +202,8 @@ public class Repository {
 
     /** Print out logs from the Head Commit. */
     public static void log() {
-         Commit head = (Commit) fetchHead();
-         System.out.print(verboseLog(head));
+        Commit head = (Commit) fetchHead();
+        System.out.print(verboseLog(head));
     }
 
     /** Print out logs for all commits. */
@@ -389,7 +389,7 @@ public class Repository {
         List<String> branchList = plainFilenamesIn(REFS_DIR);
         // Compose branch part
         for (String branch: branchList) {
-            if(isHead(branch)) {
+            if (isHead(branch)) {
                 // move current branch to the head and star
                 branchPart = "*%s%n".formatted(branch) + branchPart;
             } else {
@@ -418,14 +418,15 @@ public class Repository {
         }
         workingTree.merge(stage);
         for (Map.Entry<String, String> p: workingTree.getMapping().entrySet()) {
-            if (!workingFileList.contains(p.getKey()) && !stage.getDeleted().containsKey(p.getKey())) {
+            if (!workingFileList.contains(p.getKey())
+                    && !stage.getDeleted().containsKey(p.getKey())) {
                 coverUp += "%s (deleted)%n".formatted(p.getKey());
             }
         }
         for (String file: workingFileList) {
             Blob temp = new Blob(file);
-            if (workingTree.isContained(file) && (workingTree.getBlobID(temp.getFile()) == null ||
-                    !workingTree.getBlobID(temp.getFile()).equals(temp.getID()))) {
+            if (workingTree.isContained(file) && (workingTree.getBlobID(temp.getFile()) == null
+                    || !workingTree.getBlobID(temp.getFile()).equals(temp.getID()))) {
                 coverUp += "%s (modified)%n".formatted(file);
             }
         }
@@ -445,15 +446,97 @@ public class Repository {
      *  files that are not present in that commit. Also moves the current
      *  branch’s head to that commit node.
      *
-     * @param CommitId the commit resetting to
+     * @param commitId the commit resetting to
      */
-    public static void reset(String CommitId) {
-        checkoutCommit(CommitId, true);
+    public static void reset(String commitId) {
+        checkoutCommit(commitId, true);
+    }
+
+
+    /* ***************************************************************
+     *******************    Internal Methods    **********************
+     *************************************************************** */
+
+
+    /** Set up persistence for a gitlet repository. */
+    private static void buildRepo() {
+        // Initialize a new gitlet working directory
+        if (!GITLET_DIR.mkdir()) {
+            // Note: Never re-initialize an existing repository
+            exitWithPrint("A Gitlet version-control system already " +
+                    "exists in the current directory.");
+        }
+        // Create refs directory
+        REFS_DIR.mkdir();
+        // Create object directory
+        OBJECT_DIR.mkdir();
+        // Create HEAD
+        writeObject(HEAD, "refs/master");
+        // Create the master branch
+        writeObject(MASTER, new CommitTree());
+        // Create the staging area
+        writeObject(STAGE, new Stage());
+        // Create global commit collecting zone
+        writeObject(GLOBAL, new CommitTree());
+    }
+
+    /** Check if the filename points at an existed file,
+     *  return null if not existed
+     *
+     * @param filename the file to check
+     * @param msg error message
+     * @return the name of the found file or null
+     */
+    private static String checkFile(String filename, String msg) {
+        File filePath = Utils.join(CWD, filename);
+        // If the file does not exist, abort
+        if (!filePath.exists()) {
+            exitWithPrint(msg);
+        } else {
+            return filename;
+        }
+        return null;
+    }
+
+    /** Compose a very verbose log info of all commit info starting from
+     *  the HEAD commit to init commit.
+     *
+     *  @return collected and ordered commit info
+     */
+    private static String verboseLog(Commit head) {
+        StringBuilder log = new StringBuilder();
+        while (head != null) {
+            log.append(head.log());
+            head = (Commit) fetch(head.getParent());
+        }
+        return log.toString();
+    }
+
+    /** Fetch the commit at HEAD. */
+    private static Dumpable fetchHead() {
+        File branch = join(GITLET_DIR, readContentsAsString(HEAD));
+        File parentDir = join(OBJECT_DIR, readObject(branch, CommitTree.class).getLast());
+        return new Commit().load(parentDir);
+    }
+
+    /** Fetch a dumpable object stored at OBJECT_DIR.
+     *
+     * @param filename sha-1 value of the object to fetch
+     */
+    private static Dumpable fetch(String filename) {
+        if (filename.equals(""))  {
+            return null;
+        }
+        File path = join(OBJECT_DIR, filename);
+        if (!path.exists()) {
+            return null;
+        }
+        return readObject(join(OBJECT_DIR, filename), Dumpable.class);
     }
 
     /** Check out a commit. */
-    private static void checkoutCommit(String CommitId, boolean changeHead) {
-        Commit c = fetchCommit(CommitId);
+    private static void checkoutCommit(String commitId, boolean changeHead) {
+        Commit c = fetchCommit(commitId);
         // check if any file in the working directory is untracked
         checkUntracked();
         // All working files in current working directory
@@ -511,89 +594,6 @@ public class Repository {
                         "delete it, or add and commit it first.");
             }
         }
-    }
-
-
-    /* ***************************************************************
-     *******************    Internal Methods    **********************
-     *************************************************************** */
-
-
-    /** Set up persistence for a gitlet repository. */
-    private static void buildRepo() {
-        // Initialize a new gitlet working directory
-        if (!GITLET_DIR.mkdir()) {
-            // Note: Never re-initialize an existing repository
-            exitWithPrint("A Gitlet version-control system already " +
-                    "exists in the current directory.");
-        }
-        // Create refs directory
-        REFS_DIR.mkdir();
-        // Create object directory
-        OBJECT_DIR.mkdir();
-        // Create HEAD
-        writeObject(HEAD, "refs/master");
-        // Create the master branch
-        writeObject(MASTER, new CommitTree());
-        // Create the staging area
-        writeObject(STAGE, new Stage());
-        // Create global commit collecting zone
-        writeObject(GLOBAL, new CommitTree());
-    }
-
-    /** Check if the filename points at an existed file,
-     *  return null if not existed
-     *
-     * @param filename the file to check
-     * @param msg error message
-     * @return the name of the found file or null
-     */
-    private static String checkFile(String filename, String msg) {
-        File filePath = Utils.join(CWD, filename);
-        // If the file does not exist, abort
-        if (!filePath.exists()) {
-            exitWithPrint(msg);
-        }
-        else {
-            return filename;
-        }
-        return null;
-    }
-
-    /** Compose a very verbose log info of all commit info starting from
-     *  the HEAD commit to init commit.
-     *
-     *  @return collected and ordered commit info
-     */
-    private static String verboseLog(Commit head) {
-        StringBuilder log = new StringBuilder();
-        while (head != null) {
-            log.append(head.log());
-            head = (Commit) fetch(head.getParent());
-        }
-        return log.toString();
-    }
-
-    /** Fetch the commit at HEAD. */
-    private static Dumpable fetchHead() {
-        File branch = join(GITLET_DIR, readContentsAsString(HEAD));
-        File parentDir = join(OBJECT_DIR, readObject(branch, CommitTree.class).getLast());
-        return new Commit().load(parentDir);
-    }
-
-    /** Fetch a dumpable object stored at OBJECT_DIR.
-     *
-     * @param filename sha-1 value of the object to fetch
-     */
-    private static Dumpable fetch(String filename) {
-        if (filename.equals(""))  {
-            return null;
-        }
-        File path = join(OBJECT_DIR, filename);
-        if (!path.exists()) {
-            return null;
-        }
-        return readObject(join(OBJECT_DIR, filename), Dumpable.class);
     }
 
     /** Check if .gitlet directory exist in current working directory */

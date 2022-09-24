@@ -15,27 +15,25 @@ public class BlobTree implements Tree {
     /** Mapping blobs in <Key filename, Value SHA-1 value> pairs. */
     private HashMap<String, String> mapping = new HashMap<>();
     /** SHA-1 value for this blob tree. */
-    private String Id;
+    private String id;
 
     /** New a blob tree object
      *
      * @param blobs files included in this tree
      */
     public BlobTree(Blob... blobs) {
-        this.mapping = new HashMap<>();
         for (Blob b: blobs) {
             this.mapping.put(b.getFile(), b.getID());
         }
-        this.Id = Utils.sha1(Utils.serialize(this));
+        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** New an empty blob tree. */
-    public BlobTree() {}
+    public BlobTree() { }
 
-    /** A method to connect two blob trees, e.g. merge the
-     * staging area and blob tree of a parent commit.
-     * Note: old files in tracked will be replaced by new
-     * files in this commit tree.
+    /** Merge the staging area and blob tree of a parent commit.
+     *  Note: old files in tracked will be replaced by new
+     *  files in this commit tree.
      *
      * @param stage the staging area
      */
@@ -43,28 +41,28 @@ public class BlobTree implements Tree {
         HashMap<String, String> merged = this.mapping;
         merged.putAll(stage.getMapping());
         this.mapping = merged;
-        this.Id = Utils.sha1(Utils.serialize(this));
+        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Empty this blob tree. */
     public void empty() {
         this.mapping = new HashMap<>();
-        this.Id = "";
+        this.id = "";
     }
 
     /** Check if there is any element in this tree. */
     public boolean isEmpty() {
-        return this.mapping == null || this.mapping.isEmpty();
+        return this.mapping.isEmpty();
     }
 
-    /** Check if a dumpable object exists in this tree by its ID. */
+    /** Check if a dumpable object exists in this tree by its name. */
     public boolean isContained(String filename) {
         return this.mapping.containsKey(filename);
     }
 
     /** Return the SHA-1 value of this commit tree. */
     public String getID() {
-        return this.Id;
+        return this.id;
     }
 
     public HashMap<String, String> getMapping() {
@@ -84,7 +82,7 @@ public class BlobTree implements Tree {
         // header of a tree object
         String log = "tree ";
         // add ID
-        log += this.Id + "\n";
+        log += this.id + "\n";
         if (this.mapping != null) {
             // add one line log for all dumpables in this tree
             for (Map.Entry<String, String> p : this.mapping.entrySet()) {
@@ -95,8 +93,8 @@ public class BlobTree implements Tree {
     }
 
     /** Store this tree and generate its SHA-1 value. */
-    public void store(File storePath){
-        Utils.writeObject(Utils.join(storePath, this.Id), this);
+    public void store(File storePath) {
+        Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 
     /** Load a tree object by its ID and return it for assignment.

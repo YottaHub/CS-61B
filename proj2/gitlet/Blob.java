@@ -12,7 +12,7 @@ public class Blob implements Serializable, Dumpable {
     /** Tracked file of this blob. */
     private final String file;
     /** SHA-1 value of this blob. */
-    private final String Id;
+    private final String id;
     /** The file content of this blob. */
     private final byte[] content;
     /** The current working directory. */
@@ -20,19 +20,19 @@ public class Blob implements Serializable, Dumpable {
     // commits that link to this blob
     // private Set<String> links;
 
-    /** New a blob object
+    /** New blob object with a file
      *
      * @param filename a tracked file
      */
     public Blob(String filename) {
         this.file = filename;
         this.content = Utils.readContents(Utils.join(CWD, filename));
-        this.Id = Utils.sha1(Utils.serialize(this));
+        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Return the SHA-1 value of this blob. */
     public String getID() {
-        return this.Id;
+        return this.id;
     }
 
     /** Return the name of related file. */
@@ -58,7 +58,7 @@ public class Blob implements Serializable, Dumpable {
         // header of a blob object
         String log = "blob ";
         // add ID
-        log += this.Id + "\n";
+        log += this.id + "\n";
         // add content
         log += "------\n" + this.getContent();
         return log;
@@ -66,7 +66,7 @@ public class Blob implements Serializable, Dumpable {
 
     /** Store this blob and generate its SHA-1 value. */
     public void store(File storePath) {
-        Utils.writeObject(Utils.join(storePath, this.Id), this);
+        Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 
     /** Load a blob object by its ID and return it for assignment.

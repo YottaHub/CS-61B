@@ -18,7 +18,7 @@ public class Commit implements Serializable, Dumpable {
     // Note: Simplified for two parents at most in this project
     private String[] parents = new String[2];
     /** The SHA-1 value of this Commit. */
-    private String Id;
+    private String id;
     /** The ID of the tracked blob tree. */
     private String tree;
 
@@ -35,11 +35,11 @@ public class Commit implements Serializable, Dumpable {
         this.message = msg;
         this.parents[0] = p;
         this.tree = t;
-        this.Id = Utils.sha1(Utils.serialize(this));
+        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** New an empty commit. */
-    public Commit() {}
+    public Commit() { }
 
     /** Add this commit to another branch.
      *
@@ -61,7 +61,7 @@ public class Commit implements Serializable, Dumpable {
 
     /** Return the SHA-1 value of this commit. */
     public String getID() {
-        return this.Id;
+        return this.id;
     }
 
     /** Return the message of this commit. */
@@ -87,10 +87,11 @@ public class Commit implements Serializable, Dumpable {
         // header of a commit object
         String log = "===\ncommit ";
         // add ID
-        log += this.Id + "\n";
+        log += this.id + "\n";
         // add merge info
-        if (parents[1] != null)
+        if (parents[1] != null) {
             log += "Merge: " + this.parents[0] + "\t" + this.parents[1] + "\n";
+        }
         // add time stamp
         // format: "Date: \w\w\w \w\w\w \d+ \d\d:\d\d:\d\d \d\d\d\d [-+]\d\d\d\d"
         String pattern = "E MMM d HH:mm:ss yyyy Z";
@@ -104,7 +105,7 @@ public class Commit implements Serializable, Dumpable {
     /** Store this commit and generate its SHA-1 value. */
     public void store(File storePath) {
         // all dumpable objects must store in "$REPO_DIR/.gitlet/objects/../..."
-        Utils.writeObject(Utils.join(storePath, this.Id), this);
+        Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 
     /** Load a Commit object by its ID and return it for assignment.

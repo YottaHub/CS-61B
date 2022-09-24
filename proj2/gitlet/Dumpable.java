@@ -19,7 +19,7 @@ import java.io.Serializable;
  *    |
  *    + BlobTree (add(blob), merge(BlobTree))
  *    | |
- *    |	+- Stage (unstage(File), addDeleted(File),
+ *    | +- Stage (unstage(File), addDeleted(File),
  *    |           findModified(CWD), findDeleted(CWD))
  *    |
  *    + CommitTree (add(commit))
