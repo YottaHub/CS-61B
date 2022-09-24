@@ -41,8 +41,7 @@ public class Commit implements Serializable, Dumpable {
     /** New an empty commit. */
     public Commit() {}
 
-    /**
-     * Add this commit to another branch.
+    /** Add this commit to another branch.
      *
      * @return if a relative branch is successfully linked
      */

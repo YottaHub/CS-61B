@@ -94,6 +94,12 @@ public class Main {
                 validateNumArgs(args, 1);
                 status();
             }
+            case "reset" -> {
+                // java gitlet.Main reset [commit id]
+                checkRequirement();
+                validateNumArgs(args, 2);
+                reset(args[1]);
+            }
             default -> exitWithPrint("No command with that name exists.");
         }
     }

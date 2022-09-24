@@ -58,7 +58,6 @@ public class Repository {
     /** The staging area. */
     public static File STAGE = join(GITLET_DIR, "index");
 
-
     /* ***************************************************************
        ********************    Main Methods    ***********************
        *************************************************************** */
@@ -277,34 +276,10 @@ public class Repository {
         if (!branchPath.exists()) {
             exitWithPrint("No such branch exists.");
         }
-        Commit head = (Commit) fetchHead();
-        BlobTree workingTree = (BlobTree) fetch(head.getTree());
-        // All working files in current working directory
-        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        for (String file: workingFileList) {
-            // If a working file is untracked in the current branch
-            // and would be overwritten by the checkout
-            if (!workingTree.isContained(file)) {
-                exitWithPrint("There is an untracked file in the way; " +
-                        "delete it, or add and commit it first.");
-            }
-        }
-        // Any files that are tracked in the current branch but are not
-        // present in the checked-out branch are deleted.
-        for (String file: workingFileList) {
-            new File(file).delete();
-        }
-        // Write all files in the checked branch into current working directory
-        CommitTree checkedTree = readObject(branchPath, CommitTree.class);
-        for (Map.Entry<String, String> p: ((BlobTree) fetch(((Commit) fetch(checkedTree.getLast())).
-                getTree())).getMapping().entrySet()) {
-            writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
-        }
-        // Clear the staging area
-        Stage stage = readObject(STAGE, Stage.class);
-        stage.empty();
-        writeObject(STAGE, stage);
-        // Move Head to the new branch
+        // check out the branch head commit
+        String head = readObject(branchPath, CommitTree.class).getLast();
+        checkoutCommit(head, false);
+        // Move HEAD to the new branch
         writeContents(HEAD, "refs/%s".formatted(branchName));
     }
 
@@ -466,6 +441,78 @@ public class Repository {
         System.out.println(coverUp);
     }
 
+    /** Checks out all the files tracked by the given commit. Removes tracked
+     *  files that are not present in that commit. Also moves the current
+     *  branch’s head to that commit node.
+     *
+     * @param CommitId the commit resetting to
+     */
+    public static void reset(String CommitId) {
+        checkoutCommit(CommitId, true);
+    }
+
+    /** Check out a commit. */
+    private static void checkoutCommit(String CommitId, boolean changeHead) {
+        Commit c = fetchCommit(CommitId);
+        // check if any file in the working directory is untracked
+        checkUntracked();
+        // All working files in current working directory
+        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
+        // Any files that are tracked in the current branch but are not
+        // present in the checked-out branch are deleted.
+        for (String file: workingFileList) {
+            new File(file).delete();
+        }
+        // Write all files in the target commit into CWD
+        BlobTree tree = (BlobTree) fetch(c.getTree());
+        for (Map.Entry<String, String> p: tree.getMapping().entrySet()) {
+            writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
+        }
+        // Clear the staging area
+        Stage stage = readObject(STAGE, Stage.class);
+        stage.empty();
+        writeObject(STAGE, stage);
+        // Need to change the current branch head
+        if (changeHead) {
+            Commit newHead = new Commit(new Date(), c.getMsg(), fetchHead().getID(), c.getTree());
+            newHead.store(OBJECT_DIR);
+            CommitTree branch = fetchCurrentBranch();
+            branch.add(newHead);
+            writeObject(join(GITLET_DIR, readContentsAsString(HEAD)), branch);
+        }
+    }
+
+    private static CommitTree fetchCurrentBranch() {
+        return (CommitTree) new CommitTree().load(join(GITLET_DIR, readContentsAsString(HEAD)));
+    }
+
+    /** Fetch a commit by its id, exists if no such commit. */
+    private static Commit fetchCommit(String commitId) {
+        // for short-uid cases
+        commitId = autoComplete(commitId);
+        Commit c = (Commit) fetch(commitId);
+        if (c == null) {
+            exitWithPrint("No commit with that id exists.");
+        }
+        return c;
+    }
+
+    /** Check if any working file is untracked. */
+    private static void checkUntracked() {
+        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
+        Commit head = (Commit) fetchHead();
+        BlobTree workingTree = (BlobTree) fetch(head.getTree());
+        if (workingTree == null) {
+            workingTree = new BlobTree();
+        }
+        for (String file : workingFileList) {
+            if (!workingTree.isContained(file)) {
+                exitWithPrint("There is an untracked file in the way; " +
+                        "delete it, or add and commit it first.");
+            }
+        }
+    }
+
 
     /* ***************************************************************
      *******************    Internal Methods    **********************
@@ -534,12 +581,14 @@ public class Repository {
         return new Commit().load(parentDir);
     }
 
-    /** Fetch a dumpable object.
+    /** Fetch a dumpable object stored at OBJECT_DIR.
      *
      * @param filename sha-1 value of the object to fetch
      */
     private static Dumpable fetch(String filename) {
-        if (filename.equals(""))  return null;
+        if (filename.equals(""))  {
+            return null;
+        }
         File path = join(OBJECT_DIR, filename);
         if (!path.exists()) {
             return null;
