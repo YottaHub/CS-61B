@@ -40,6 +40,9 @@ public class BlobTree implements Tree {
     public void merge(Stage stage) {
         HashMap<String, String> merged = this.mapping;
         merged.putAll(stage.getMapping());
+        for (Map.Entry<String, String> p: stage.getDeleted().entrySet()) {
+            merged.remove(p.getKey(), p.getValue());
+        }
         this.mapping = merged;
         this.id = Utils.sha1(Utils.serialize(this));
     }
