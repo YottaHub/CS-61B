@@ -110,7 +110,9 @@ public class Repository {
         Stage stage = Utils.readObject(STAGE, Stage.class);
         // Put the blob into the stage
         BlobTree workingTree = fetchTrackedTree();
-        if (workingTree.isContained(filename) && workingTree.getBlobID(filename).equals(b.getID())) {
+        if (workingTree.isContained(filename)
+                && workingTree.getBlobID(filename).equals(b.getID())
+                && !stage.isDeleted(filename)) {
             // Adding a tracked and identical file has no effect
             return;
         } else {
@@ -183,8 +185,6 @@ public class Repository {
         if (stage.isContained(filename)) {
             // If this file is found in staging area, unstage it
             String id = stage.unstage(filename);
-            // Save the adapted staging area
-            writeObject(STAGE, stage);
             // Delete the unstaged file
             join(OBJECT_DIR, id).delete();
         } else {
@@ -196,10 +196,11 @@ public class Repository {
                 stage.addDeletion(filename, tracked.getBlobID(filename));
                 restrictedDelete(join(CWD, filename));
             } else {
-                // File not found
+                // remove an untracked file
                 exitWithPrint(msg);
             }
         }
+        // save the staging area
         Utils.writeObject(STAGE, stage);
     }
 
@@ -442,8 +443,8 @@ public class Repository {
         // Initialize a new gitlet working directory
         if (!GITLET_DIR.mkdir()) {
             // Note: Never re-initialize an existing repository
-            exitWithPrint("A Gitlet version-control system already " +
-                    "exists in the current directory.");
+            exitWithPrint("A Gitlet version-control system already "
+                    + "exists in the current directory.");
         }
         // Create refs directory
         REFS_DIR.mkdir();
@@ -610,8 +611,8 @@ public class Repository {
         }
         for (String file : workingFileList) {
             if (!workingTree.isContained(file)) {
-                exitWithPrint("There is an untracked file in the way; " +
-                        "delete it, or add and commit it first.");
+                exitWithPrint("There is an untracked file in the way; "
+                        + "delete it, or add and commit it first.");
             }
         }
     }

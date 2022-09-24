@@ -51,6 +51,11 @@ public class Stage extends BlobTree {
         return this.mapping.containsKey(filename);
     }
 
+    /** Check if a dumpable object exists in the deleted by its ID. */
+    public boolean isDeleted(String filename) {
+        return this.deleted.containsKey(filename);
+    }
+
     /** Add a blob to this tree and replace if overlapped.
      *  If the blob has been deleted and not modified, remove it
      *  from the deleted.
@@ -58,20 +63,16 @@ public class Stage extends BlobTree {
      * @param b the added blob
      */
     public void add(Blob b) {
-        if (this.deleted.containsKey(b.getFile())) {
-            if (!b.getID().equals(this.deleted.remove(b.getFile()))) {
-                this.mapping.put(b.getFile(), b.getID());
-            }
-        } else {
+        if (!this.deleted.remove(b.getFile(), b.getID())) {
             this.mapping.put(b.getFile(), b.getID());
         }
     }
 
     /** Unstage a file in the staging area. */
     public String unstage(String target) {
-        String id = this.mapping.get(target);
+        String blobId = this.mapping.get(target);
         this.mapping.remove(target);
-        return id;
+        return blobId;
     }
 
     /** Add deleted file to the staging area. */
