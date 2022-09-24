@@ -51,12 +51,20 @@ public class Stage extends BlobTree {
         return this.mapping.containsKey(filename);
     }
 
-    /** Add a blob to this tree and replace if overlapped. * Buggy
+    /** Add a blob to this tree and replace if overlapped.
+     *  If the blob has been deleted and not modified, remove it
+     *  from the deleted.
      *
      * @param b the added blob
      */
     public void add(Blob b) {
-        this.mapping.put(b.getFile(), b.getID());
+        if (this.deleted.containsKey(b.getFile())) {
+            if (!b.getID().equals(this.deleted.remove(b.getFile()))) {
+                this.mapping.put(b.getFile(), b.getID());
+            }
+        } else {
+            this.mapping.put(b.getFile(), b.getID());
+        }
     }
 
     /** Unstage a file in the staging area. */

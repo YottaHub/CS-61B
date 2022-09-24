@@ -108,9 +108,14 @@ public class Repository {
         // Store the blob
         b.store(OBJECT_DIR);
         Stage stage = Utils.readObject(STAGE, Stage.class);
-        // Adding a tracked and identical file has no effect
         // Put the blob into the stage
-        stage.add(b);
+        BlobTree workingTree = fetchTrackedTree();
+        if (workingTree.isContained(filename) && workingTree.getBlobID(filename).equals(b.getID())) {
+            // Adding a tracked and identical file has no effect
+            return;
+        } else {
+            stage.add(b);
+        }
         // Save the stage
         // Note: Differ from the @code{store}
         Utils.writeObject(STAGE, stage);
@@ -173,8 +178,6 @@ public class Repository {
     public static void remove(String filename) {
         // Error message of this method
         String msg = "No reason to remove the file.";
-        // Check if the file exist
-        checkFile(filename, msg);
         // Check if the file is staged
         Stage stage = Utils.readObject(STAGE, Stage.class);
         if (stage.isContained(filename)) {
@@ -223,7 +226,7 @@ public class Repository {
      *  of the file that’s already there if there is one. The new
      *  version of the file is not staged.
      *
-     * @param filename the file to check out
+     *  @param filename the file to check out
      */
     public static void checkout(String filename) {
         Commit head = (Commit) fetchHead();
@@ -281,28 +284,6 @@ public class Repository {
         checkoutCommit(head, false);
         // Move HEAD to the new branch
         writeContents(HEAD, "refs/%s".formatted(branchName));
-    }
-
-    /** Complete a short-uid to a full-length one. */
-    private static String autoComplete(String shortId) {
-        List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
-        int cnt = 0;
-        if (fileList.contains(shortId)) {
-            // if it is not short
-            cnt = 1;
-        } else {
-            for (String full : fileList) {
-                if (full.startsWith(shortId)) {
-                    shortId = full;
-                    cnt += 1;
-                }
-            }
-        }
-        if (cnt != 1) {
-            // cannot narrow to one specific commit
-            return null;
-        }
-        return shortId;
     }
 
     /** Prints out the ids of all commits that have the given
@@ -387,7 +368,7 @@ public class Repository {
         String coverUp = "=== Branches ===\n";
         String branchPart = "";
         List<String> branchList = plainFilenamesIn(REFS_DIR);
-        // Compose branch part
+        // Compose branch part by inspecting current branch
         for (String branch: branchList) {
             if (isHead(branch)) {
                 // move current branch to the head and star
@@ -396,28 +377,25 @@ public class Repository {
                 branchPart += "%s%n".formatted(branch);
             }
         }
-        // Compose staged part
+        // Compose staged part by inspecting the mapping in stage
         coverUp += branchPart + "\n=== Staged Files ===\n";
         Stage stage = readObject(STAGE, Stage.class);
         for (Map.Entry<String, String> p: stage.getMapping().entrySet()) {
             coverUp += "%s%n".formatted(p.getKey());
         }
-        // Compose removed part
+        // Compose removed part by inspecting the deleted in stage
         coverUp += "\n=== Removed Files ===\n";
         for (Map.Entry<String, String> p: stage.getDeleted().entrySet()) {
             coverUp += "%s%n".formatted(p.getKey());
         }
+        // Compose modified part by comparing the sha-1 values
+        coverUp += "\n=== Modifications Not Staged For Commit ===\n";
         // All working files in current working directory
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        // Compose modified part
-        coverUp += "\n=== Modifications Not Staged For Commit ===\n";
-        Commit head = (Commit) fetchHead();
-        BlobTree workingTree = (BlobTree) fetch(head.getTree());
-        if (workingTree == null) {
-            workingTree = new BlobTree();
-        }
-        workingTree.merge(stage);
+        BlobTree workingTree = fetchTrackedTree();
+        // Iterating all files in the blob tree
         for (Map.Entry<String, String> p: workingTree.getMapping().entrySet()) {
+            // If a file disappears and not staged
             if (!workingFileList.contains(p.getKey())
                     && !stage.getDeleted().containsKey(p.getKey())) {
                 coverUp += "%s (deleted)%n".formatted(p.getKey());
@@ -425,6 +403,7 @@ public class Repository {
         }
         for (String file: workingFileList) {
             Blob temp = new Blob(file);
+            // A modified file must be modified and its former version should be committed or staged
             if (workingTree.isContained(file) && (workingTree.getBlobID(temp.getFile()) == null
                     || !workingTree.getBlobID(temp.getFile()).equals(temp.getID()))) {
                 coverUp += "%s (modified)%n".formatted(file);
@@ -498,6 +477,31 @@ public class Repository {
         return null;
     }
 
+    /** Complete a short-uid to a full-length one. */
+    private static String autoComplete(String shortId) {
+        List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
+        if (fileList == null) {
+            fileList = new LinkedList<>();
+        }
+        int cnt = 0;
+        if (fileList.contains(shortId)) {
+            // if it is not short
+            cnt = 1;
+        } else {
+            for (String full : fileList) {
+                if (full.startsWith(shortId)) {
+                    shortId = full;
+                    cnt += 1;
+                }
+            }
+        }
+        if (cnt != 1) {
+            // cannot narrow to one specific commit
+            return null;
+        }
+        return shortId;
+    }
+
     /** Compose a very verbose log info of all commit info starting from
      *  the HEAD commit to init commit.
      *
@@ -548,6 +552,9 @@ public class Repository {
         }
         // Write all files in the target commit into CWD
         BlobTree tree = (BlobTree) fetch(c.getTree());
+        if (tree == null) {
+            tree = new BlobTree();
+        }
         for (Map.Entry<String, String> p: tree.getMapping().entrySet()) {
             writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
         }
@@ -567,6 +574,19 @@ public class Repository {
 
     private static CommitTree fetchCurrentBranch() {
         return (CommitTree) new CommitTree().load(join(GITLET_DIR, readContentsAsString(HEAD)));
+    }
+
+    private static BlobTree fetchTrackedTree() {
+        // Fetch current commit
+        Commit head = (Commit) fetchHead();
+        // The blob tree of current commit
+        BlobTree workingTree = (BlobTree) fetch(head.getTree());
+        if (workingTree == null) {
+            workingTree = new BlobTree();
+        }
+        // Merge the stage and the working tree of current commit
+        workingTree.merge(readObject(STAGE, Stage.class));
+        return workingTree;
     }
 
     /** Fetch a commit by its id, exists if no such commit. */
