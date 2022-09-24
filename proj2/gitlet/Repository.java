@@ -529,7 +529,7 @@ public class Repository {
      * @param filename sha-1 value of the object to fetch
      */
     private static Dumpable fetch(String filename) {
-        if (filename.equals(""))  {
+        if (filename == null || filename.equals(""))  {
             return null;
         }
         File path = join(OBJECT_DIR, filename);
@@ -604,11 +604,7 @@ public class Repository {
     /** Check if any working file is untracked. */
     private static void checkUntracked() {
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        Commit head = (Commit) fetchHead();
-        BlobTree workingTree = (BlobTree) fetch(head.getTree());
-        if (workingTree == null) {
-            workingTree = new BlobTree();
-        }
+        BlobTree workingTree = fetchTrackedTree();
         for (String file : workingFileList) {
             if (!workingTree.isContained(file)) {
                 exitWithPrint("There is an untracked file in the way; "

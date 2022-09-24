@@ -76,8 +76,8 @@ public class Stage extends BlobTree {
     }
 
     /** Add deleted file to the staging area. */
-    public void addDeletion(String target, String id) {
-        this.deleted.put(target, id);
+    public void addDeletion(String target, String blobId) {
+        this.deleted.put(target, blobId);
     }
 
     /** Check if the staging area is changed. */
