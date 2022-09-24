@@ -48,6 +48,12 @@ public class CommitTree implements Tree {
         return this.head;
     }
 
+    public void setLast(String commitId) {
+        if (this.mapping.containsKey(commitId)) {
+            this.head = commitId;
+        }
+    }
+
     /** Return the commits map of this tree. */
     public HashMap<String, String> getMapping() {
         return this.mapping;

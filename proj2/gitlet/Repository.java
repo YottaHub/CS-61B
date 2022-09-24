@@ -563,12 +563,10 @@ public class Repository {
         Stage stage = readObject(STAGE, Stage.class);
         stage.empty();
         writeObject(STAGE, stage);
-        // Need to change the current branch head
+        // Need to change the current branch head to the checked commit
         if (changeHead) {
-            Commit newHead = new Commit(new Date(), c.getMsg(), fetchHead().getID(), c.getTree());
-            newHead.store(OBJECT_DIR);
             CommitTree branch = fetchCurrentBranch();
-            branch.add(newHead);
+            branch.setLast(c.getID());
             writeObject(join(GITLET_DIR, readContentsAsString(HEAD)), branch);
         }
     }
