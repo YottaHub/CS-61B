@@ -443,6 +443,15 @@ public class Repository {
     }
 
     /** Merges files from the given branch into the current branch.
+     *  Main situations:
+     *  Spilt Point | HEAD | Branch | Merged | case
+     *  origin | origin | Modified | Stage | A
+     *  origin | Modified | origin | Hold | B
+     *  origin | Modified | same M | Hold | C
+     *  None | New | None | Hold | D
+     *  None | None | New | Checkout & Stage | E
+     *  origin | origin | absent | remove | F
+     *  origin | My M | Ur M | conflict | G
      *
      * @param branchName another branch
      */
@@ -459,33 +468,13 @@ public class Repository {
         // Check if a branch with the given name does not exist
         File branchPath = join(REFS_DIR, branchName);
         if (!branchPath.exists()) {
-            exitWithPrint("No such branch exists.");
+            exitWithPrint("A branch with that name does not exist.");
         }
         // Fetch head commit of the given branch
         Commit mHead = (Commit) fetch(readObject(branchPath, CommitTree.class).getLast());
         // Fetch current head commit
         Commit cHead = (Commit) fetchHead();
-        // Find the latest common ancestor
-        Commit mBack = mHead;
-        Commit cBack = cHead;
-        while (!cBack.getID().equals(mBack.getID())) {
-            // Move whichever the older
-            if (cBack.getTimeStamp().compareTo(mBack.getTimeStamp()) > 0) {
-                cBack = (Commit) fetch(cBack.getParent());
-            } else {
-                mBack = (Commit) fetch(mBack.getParent());
-            }
-        }
-        // If the split point is the current branch
-        if (cBack.getID().equals(cHead.getID())) {
-            exitWithPrint("Current branch fast-forwarded.");
-            // checkout the given branch
-            checkoutCommit(branchName, true);
-        }
-        // If the split point is the same commit as the given branch
-        if (mBack.getID().equals(mHead.getID())) {
-            exitWithPrint("Given branch is an ancestor of the current branch.");
-        }
+        Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
         BlobTree divergedTree = (BlobTree) fetch(mHead.getTree());
         if (divergedTree == null) {
             divergedTree = new BlobTree();
@@ -494,20 +483,11 @@ public class Repository {
         if (currentTree == null) {
             currentTree = new BlobTree();
         }
-        BlobTree ancestorTree = (BlobTree) fetch(cBack.getTree());
+        BlobTree ancestorTree = (BlobTree) fetch(ancestor.getTree());
         if (ancestorTree == null) {
             ancestorTree = new BlobTree();
         }
         boolean isConflicted = false;
-        // Main situations:
-        // Spilt Point | HEAD | Branch | Merged | case
-        // origin | origin | Modified | Stage | A
-        // origin | Modified | origin | Hold | B
-        // origin | Modified | same M | Hold | C
-        // None | New | None | Hold | D
-        // None | None | New | Checkout & Stage | E
-        // origin | origin | absent | remove | F
-        // origin | My M | Ur M | conflict | G
         for (Map.Entry<String, String> p: divergedTree.getMapping().entrySet()) {
             String name = p.getKey();
             String mAddress = p.getValue();
@@ -516,9 +496,10 @@ public class Repository {
             if (cAddress == null && aAddress == null) {
                 // case E: None | None | New
                 // file is added in the given branch
-                checkout(branchName, name);
+                checkout(mHead.getID(), name);
                 add(name);
-            } else if (cAddress != null && cAddress.equals(aAddress) && !cAddress.equals(mAddress)) {
+            } else if (cAddress != null && cAddress.equals(aAddress)
+                    && !cAddress.equals(mAddress)) {
                 // case A: origin | origin | Modified |
                 // file is same in split point and current branch but
                 // modified (not deleted) in the given branch
@@ -560,13 +541,38 @@ public class Repository {
             }
         }
         // Compose merge message
-        String currentBranchName = readContentsAsString(HEAD).split("\\")[1];
+        String currentBranchName = readContentsAsString(HEAD).split("/")[1];
         String msg = "Merged %s into %s.".formatted(branchName, currentBranchName);
         // A special commit after merging
         commit(msg, mHead.getID());
         if (isConflicted) {
             exitWithPrint("Encountered a merge conflict.");
         }
+    }
+
+    private static Commit findLatestAncestor(Commit cHead, Commit mHead, String branchName) {
+        // Find the latest common ancestor
+        Commit mBack = mHead;
+        Commit cBack = cHead;
+        while (!cBack.getID().equals(mBack.getID())) {
+            // Move whichever the older
+            if (cBack.getTimeStamp().compareTo(mBack.getTimeStamp()) > 0) {
+                cBack = (Commit) fetch(cBack.getParent());
+            } else {
+                mBack = (Commit) fetch(mBack.getParent());
+            }
+        }
+        // If the split point is the current branch
+        if (cBack.getID().equals(cHead.getID())) {
+            exitWithPrint("Current branch fast-forwarded.");
+            // checkout the given branch
+            checkoutCommit(branchName, true);
+        }
+        // If the split point is the same commit as the given branch
+        if (mBack.getID().equals(mHead.getID())) {
+            exitWithPrint("Given branch is an ancestor of the current branch.");
+        }
+        return cBack;
     }
 
     /** Adapts the contents of conflicted files. */

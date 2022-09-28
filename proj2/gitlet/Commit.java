@@ -65,7 +65,6 @@ public class Commit implements Serializable, Dumpable {
     public void setRelative(String relative) {
         if (this.parents[1] == null) {
             this.parents[1] = relative;
-        } else {
         }
     }
 
