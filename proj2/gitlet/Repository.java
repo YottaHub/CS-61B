@@ -46,6 +46,8 @@ public class Repository {
     public static final File REFS_DIR = join(GITLET_DIR, "refs");
     /** The OBJECT directory where stores all objects' content */
     public static final File OBJECT_DIR = join(GITLET_DIR, "objects");
+    /** The remote directory. */
+    public static final File REMOTE_DIR = join(REFS_DIR, "remotes");
 
     /* FILES */
 
@@ -57,6 +59,8 @@ public class Repository {
     private static final File HEAD = join(GITLET_DIR, "HEAD");
     /** The staging area. */
     private static final File STAGE = join(GITLET_DIR, "index");
+    /** The origin remote repository. */
+    private static final File ORIGIN = join(REMOTE_DIR, "origin");
 
     /* ***************************************************************
        ********************    Main Methods    ***********************
@@ -133,7 +137,7 @@ public class Repository {
      *
      *  @param msg commit message
      */
-    public static void commit(String msg) {
+    public static Commit commit(String msg, String relative) {
         // Every commit must have a non-blank message
         if (msg.equals("")) {
             exitWithPrint("Please enter a commit message.");
@@ -156,7 +160,12 @@ public class Repository {
         // Store the merged blob tree as a completed gitlet object with an ID
         tracked.store(OBJECT_DIR);
         // Make a commit
-        Commit c = new Commit(new Date(), msg, parent.getID(), tracked.getID());
+        Commit c;
+        if (relative == null) {
+            c = new Commit(new Date(), msg, parent.getID(), tracked.getID());
+        } else {
+            c = new Commit(new Date(), msg, parent.getID(), relative, tracked.getID());
+        }
         // Store the commit
         c.store(OBJECT_DIR);
         // Update the current branch
@@ -168,6 +177,7 @@ public class Repository {
         CommitTree global = readObject(GLOBAL, CommitTree.class);
         global.add(c);
         Utils.writeObject(GLOBAL, global);
+        return c;
     }
 
     /** Unstage the file if it is currently staged for addition. If the file
@@ -432,6 +442,151 @@ public class Repository {
         checkoutCommit(commitId, true);
     }
 
+    /** Merges files from the given branch into the current branch.
+     *
+     * @param branchName another branch
+     */
+    public static void merge(String branchName) {
+        // Check if there are uncommitted changes
+        Stage stage = Utils.readObject(STAGE, Stage.class);
+        if (stage.isChanged()) {
+            exitWithPrint("You have uncommitted changes.");
+        }
+        // Check if the given branch is the current branch
+        if (isHead(branchName)) {
+            exitWithPrint("Cannot merge a branch with itself.");
+        }
+        // Check if a branch with the given name does not exist
+        File branchPath = join(REFS_DIR, branchName);
+        if (!branchPath.exists()) {
+            exitWithPrint("No such branch exists.");
+        }
+        // Fetch head commit of the given branch
+        Commit mHead = (Commit) fetch(readObject(branchPath, CommitTree.class).getLast());
+        // Fetch current head commit
+        Commit cHead = (Commit) fetchHead();
+        // Find the latest common ancestor
+        Commit mBack = mHead;
+        Commit cBack = cHead;
+        while (!cBack.getID().equals(mBack.getID())) {
+            // Move whichever the older
+            if (cBack.getTimeStamp().compareTo(mBack.getTimeStamp()) > 0) {
+                cBack = (Commit) fetch(cBack.getParent());
+            } else {
+                mBack = (Commit) fetch(mBack.getParent());
+            }
+        }
+        // If the split point is the current branch
+        if (cBack.getID().equals(cHead.getID())) {
+            exitWithPrint("Current branch fast-forwarded.");
+            // checkout the given branch
+            checkoutCommit(branchName, true);
+        }
+        // If the split point is the same commit as the given branch
+        if (mBack.getID().equals(mHead.getID())) {
+            exitWithPrint("Given branch is an ancestor of the current branch.");
+        }
+        BlobTree divergedTree = (BlobTree) fetch(mHead.getTree());
+        if (divergedTree == null) {
+            divergedTree = new BlobTree();
+        }
+        BlobTree currentTree = (BlobTree) fetch(cHead.getTree());
+        if (currentTree == null) {
+            currentTree = new BlobTree();
+        }
+        BlobTree ancestorTree = (BlobTree) fetch(cBack.getTree());
+        if (ancestorTree == null) {
+            ancestorTree = new BlobTree();
+        }
+        boolean isConflicted = false;
+        // Main situations:
+        // Spilt Point | HEAD | Branch | Merged | case
+        // origin | origin | Modified | Stage | A
+        // origin | Modified | origin | Hold | B
+        // origin | Modified | same M | Hold | C
+        // None | New | None | Hold | D
+        // None | None | New | Checkout & Stage | E
+        // origin | origin | absent | remove | F
+        // origin | My M | Ur M | conflict | G
+        for (Map.Entry<String, String> p: divergedTree.getMapping().entrySet()) {
+            String name = p.getKey();
+            String mAddress = p.getValue();
+            String cAddress = currentTree.getBlobID(name);
+            String aAddress = ancestorTree.getBlobID(name);
+            if (cAddress == null && aAddress == null) {
+                // case E: None | None | New
+                // file is added in the given branch
+                checkout(branchName, name);
+                add(name);
+            } else if (cAddress != null && cAddress.equals(aAddress) && !cAddress.equals(mAddress)) {
+                // case A: origin | origin | Modified |
+                // file is same in split point and current branch but
+                // modified (not deleted) in the given branch
+                add(name);
+            } else if (mAddress.equals(aAddress) && !mAddress.equals(cAddress)) {
+                // case B: origin | Modified | origin |
+                // File is only modified in current branch, hold on
+                break;
+            } else if (!mAddress.equals(aAddress) && !mAddress.equals(cAddress)) {
+                // case G: origin | My M | Ur M |
+                // file differs in three commits
+                conflict(currentTree.getBlobID(name), mAddress, name);
+                isConflicted = true;
+            }
+        }
+        // for files deleted in the given branch
+        for (Map.Entry<String, String> p: currentTree.getMapping().entrySet()) {
+            String name = p.getKey();
+            String cAddress = p.getValue();
+            String mAddress = divergedTree.getBlobID(name);
+            String aAddress = ancestorTree.getBlobID(name);
+            if (mAddress == null && aAddress == null) {
+                // case D
+                // ancestor and branch don't have this file
+                break;
+            } else if (mAddress == null) {
+                if (cAddress.equals(aAddress)) {
+                    // case F: origin | origin | absent |
+                    // file is same in the split point and current branch, but
+                    // deleted in the given branch
+                    remove(name);
+                } else {
+                    // case G: origin | My M | Ur M |
+                    // file is modified in current branch and deleted in the given
+                    // branch(a different modification)
+                    conflict(currentTree.getBlobID(name), mAddress, name);
+                    isConflicted = true;
+                }
+            }
+        }
+        // Compose merge message
+        String currentBranchName = readContentsAsString(HEAD).split("\\")[1];
+        String msg = "Merged %s into %s.".formatted(branchName, currentBranchName);
+        // A special commit after merging
+        commit(msg, mHead.getID());
+        if (isConflicted) {
+            exitWithPrint("Encountered a merge conflict.");
+        }
+    }
+
+    /** Adapts the contents of conflicted files. */
+    private static void conflict(String a, String b, String name) {
+        Blob current = (Blob) fetch(a);
+        Blob given = (Blob) fetch(b);
+        StringBuilder content = new StringBuilder("<<<<<<< HEAD\n");
+        if (current != null) {
+            // treat deleted file as empty
+            content.append(current.getContent());
+        }
+        content.append("=======\n");
+        if (current != null) {
+            content.append(given.getContent());
+        }
+        content.append(">>>>>>>\n");
+        writeContents(join(CWD, name), content);
+        add(name);
+    }
+
 
     /* ***************************************************************
      *******************    Internal Methods    **********************
@@ -450,6 +605,7 @@ public class Repository {
         REFS_DIR.mkdir();
         // Create object directory
         OBJECT_DIR.mkdir();
+        // Create remote directory
         // Create HEAD
         writeObject(HEAD, "refs/master");
         // Create the master branch

@@ -18,7 +18,7 @@ public class CommitTree implements Tree {
     /** SHA-1 value of the commit tree. */
     private String id;
 
-    /** New a commit tree object. * Buggy
+    /** New a commit tree object.we
      *
      * @param commits commit history of a branch
      */

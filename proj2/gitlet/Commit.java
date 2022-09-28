@@ -38,19 +38,34 @@ public class Commit implements Serializable, Dumpable {
         this.id = Utils.sha1(Utils.serialize(this));
     }
 
+    /**
+     * New a commit object for merging
+     *
+     * @param d    creation time
+     * @param msg  user victimized massage
+     * @param p    SHA-1 value of the parent commit
+     * @param r    Id of the relative commit
+     * @param t    SHA-1 value of the tracked blob tree
+     */
+    public Commit(Date d, String msg, String p, String r, String t) {
+        this.timeStamp = d;
+        this.message = msg;
+        this.parents[0] = p;
+        this.parents[1] = r;
+        this.tree = t;
+        this.id = Utils.sha1(Utils.serialize(this));
+    }
+
     /** New an empty commit. */
     public Commit() { }
 
-    /** Add this commit to another branch.
-     *
-     * @return if a relative branch is successfully linked
+    /**
+     * Add this commit to another branch.
      */
-    public boolean setRelative(String relative) {
+    public void setRelative(String relative) {
         if (this.parents[1] == null) {
             this.parents[1] = relative;
-            return true;
         } else {
-            return false;
         }
     }
 
@@ -72,6 +87,11 @@ public class Commit implements Serializable, Dumpable {
     /** Return the SHA-1 value of the first parent. */
     public String getParent() {
         return this.parents[0];
+    }
+
+    /** Return the time stamp of this commit. */
+    public Date getTimeStamp() {
+        return this.timeStamp;
     }
 
     /** Return the SHA-1 value of the second parent. */

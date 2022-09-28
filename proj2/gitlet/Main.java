@@ -33,7 +33,7 @@ public class Main {
             case "commit" -> {
                 checkRequirement();
                 validateNumArgs(args, 2);
-                commit(args[1]);
+                commit(args[1], null);
             }
             case "rm" -> {
                 // java gitlet.Main rm [file name]
@@ -99,6 +99,12 @@ public class Main {
                 checkRequirement();
                 validateNumArgs(args, 2);
                 reset(args[1]);
+            }
+            case "merge" -> {
+                // java gitlet.Main merge [branch name]
+                checkRequirement();
+                validateNumArgs(args, 2);
+                merge(args[1]);
             }
             default -> exitWithPrint("No command with that name exists.");
         }
