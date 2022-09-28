@@ -470,8 +470,21 @@ public class Repository {
         if (!branchPath.exists()) {
             exitWithPrint("A branch with that name does not exist.");
         }
+        boolean isConflicted = mergeHelper(branchName);
+        // Compose merge message
+        String currentBranchName = readContentsAsString(HEAD).split("/")[1];
+        String msg = "Merged %s into %s.".formatted(branchName, currentBranchName);
+        // A special commit after merging
+        Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName), CommitTree.class).getLast());
+        commit(msg, mHead.getID());
+        if (isConflicted) {
+            exitWithPrint("Encountered a merge conflict.");
+        }
+    }
+
+    private static boolean mergeHelper(String branchName) {
         // Fetch head commit of the given branch
-        Commit mHead = (Commit) fetch(readObject(branchPath, CommitTree.class).getLast());
+        Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName), CommitTree.class).getLast());
         // Fetch current head commit
         Commit cHead = (Commit) fetchHead();
         Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
@@ -540,14 +553,7 @@ public class Repository {
                 }
             }
         }
-        // Compose merge message
-        String currentBranchName = readContentsAsString(HEAD).split("/")[1];
-        String msg = "Merged %s into %s.".formatted(branchName, currentBranchName);
-        // A special commit after merging
-        commit(msg, mHead.getID());
-        if (isConflicted) {
-            exitWithPrint("Encountered a merge conflict.");
-        }
+        return isConflicted;
     }
 
     private static Commit findLatestAncestor(Commit cHead, Commit mHead, String branchName) {
@@ -564,9 +570,9 @@ public class Repository {
         }
         // If the split point is the current branch
         if (cBack.getID().equals(cHead.getID())) {
-            exitWithPrint("Current branch fast-forwarded.");
             // checkout the given branch
-            checkoutCommit(branchName, true);
+            checkoutCommit(mHead.getID(), true);
+            exitWithPrint("Current branch fast-forwarded.");
         }
         // If the split point is the same commit as the given branch
         if (mBack.getID().equals(mHead.getID())) {
@@ -728,7 +734,7 @@ public class Repository {
         // Need to change the current branch head to the checked commit
         if (changeHead) {
             CommitTree branch = fetchCurrentBranch();
-            branch.setLast(c.getID());
+            branch.setLast(c);
             writeObject(join(GITLET_DIR, readContentsAsString(HEAD)), branch);
         }
     }

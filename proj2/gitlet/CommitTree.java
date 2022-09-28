@@ -40,7 +40,6 @@ public class CommitTree implements Tree {
     public void add(Commit c) {
         this.mapping.put(c.getID(), c.getMsg());
         this.head = c.getID();
-        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Return the ID of the latest commit in this tree. */
@@ -48,9 +47,11 @@ public class CommitTree implements Tree {
         return this.head;
     }
 
-    public void setLast(String commitId) {
-        if (this.mapping.containsKey(commitId)) {
-            this.head = commitId;
+    public void setLast(Commit c) {
+        if (this.mapping.containsKey(c.getID())) {
+            this.head = c.getID();
+        } else {
+            this.add(c);
         }
     }
 
