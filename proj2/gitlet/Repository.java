@@ -499,23 +499,15 @@ public class Repository {
             String mAddress = p.getValue();
             String cAddress = currentTree.getBlobID(name);
             String aAddress = ancestorTree.getBlobID(name);
-            if (cAddress == null && aAddress == null) {
+            if (cAddress == aAddress && !mAddress.equals(cAddress)) {
+                // case A: origin | origin | Modified |
+                // file is same in split point and current branch but
+                // modified (not deleted) in the given branch
                 // case E: None | None | New
                 // file is added in the given branch
                 checkout(mHead.getID(), name);
                 add(name);
-            } else if (cAddress != null && cAddress.equals(aAddress)
-                    && !cAddress.equals(mAddress)) {
-                // case A: origin | origin | Modified |
-                // file is same in split point and current branch but
-                // modified (not deleted) in the given branch
-                checkout(mHead.getID(), name);
-                add(name);
-            } else if (mAddress.equals(aAddress) && !mAddress.equals(cAddress)) {
-                // case B: origin | Modified | origin |
-                // File is only modified in current branch, hold on
-                break;
-            } else if (!mAddress.equals(aAddress) && !mAddress.equals(cAddress)) {
+            } else if (!mAddress.equals(cAddress) && !mAddress.equals(aAddress) && aAddress != cAddress) {
                 // case G: origin | My M | Ur M |
                 // file differs in three commits
                 conflict(currentTree.getBlobID(name), mAddress, name);
@@ -529,7 +521,7 @@ public class Repository {
             String mAddress = divergedTree.getBlobID(name);
             String aAddress = ancestorTree.getBlobID(name);
             if (mAddress == null && aAddress == null) {
-                // case D
+                // case D : None | New | None
                 // neither of ancestor and the given branch has this file
                 break;
             } else if (mAddress == null) {

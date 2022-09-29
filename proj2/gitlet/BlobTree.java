@@ -74,7 +74,12 @@ public class BlobTree implements Tree {
 
     /** Return the SHA-1 value of the target file. */
     public String getBlobID(String filename) {
-        return this.mapping.get(filename);
+        if (this.isContained(filename)) {
+            return this.mapping.get(filename);
+        } else {
+            return null;
+        }
+
     }
 
     /** Compose a verbose and tree-structure version of log on this tree
