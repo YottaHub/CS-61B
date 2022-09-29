@@ -475,16 +475,20 @@ public class Repository {
         String currentBranchName = readContentsAsString(HEAD).split("/")[1];
         String msg = "Merged %s into %s.".formatted(branchName, currentBranchName);
         // A special commit after merging
-        Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName), CommitTree.class).getLast());
+        Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName),
+                CommitTree.class).getLast());
         commit(msg, mHead.getID());
         if (isConflicted) {
             exitWithPrint("Encountered a merge conflict.");
+        } else {
+            System.out.println(msg);
         }
     }
 
     private static boolean mergeHelper(String branchName) {
         // Fetch head commit of the given branch
-        Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName), CommitTree.class).getLast());
+        Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName),
+                CommitTree.class).getLast());
         // Fetch current head commit
         Commit cHead = (Commit) fetchHead();
         Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
@@ -528,7 +532,7 @@ public class Repository {
                 isConflicted = true;
             }
         }
-        // for files deleted in the given branch
+        // for files absent in the given branch
         for (Map.Entry<String, String> p: currentTree.getMapping().entrySet()) {
             String name = p.getKey();
             String cAddress = p.getValue();
@@ -536,7 +540,7 @@ public class Repository {
             String aAddress = ancestorTree.getBlobID(name);
             if (mAddress == null && aAddress == null) {
                 // case D
-                // ancestor and branch don't have this file
+                // neither of ancestor and the given branch has this file
                 break;
             } else if (mAddress == null) {
                 if (cAddress.equals(aAddress)) {
@@ -591,11 +595,11 @@ public class Repository {
             content.append(current.getContent());
         }
         content.append("=======\n");
-        if (current != null) {
+        if (given != null) {
             content.append(given.getContent());
         }
         content.append(">>>>>>>\n");
-        writeContents(join(CWD, name), content);
+        writeContents(join(CWD, name), content.toString());
         add(name);
     }
 
@@ -617,7 +621,6 @@ public class Repository {
         REFS_DIR.mkdir();
         // Create object directory
         OBJECT_DIR.mkdir();
-        // Create remote directory
         // Create HEAD
         writeObject(HEAD, "refs/master");
         // Create the master branch
@@ -628,7 +631,7 @@ public class Repository {
         writeObject(GLOBAL, new CommitTree());
     }
 
-    /** Check if the filename points at an existed file,
+    /** Check if the filename points at an existed file in CWD,
      *  return null if not existed
      *
      * @param filename the file to check
@@ -765,6 +768,26 @@ public class Repository {
             exitWithPrint("No commit with that id exists.");
         }
         return c;
+    }
+
+    private static Blob fechBlob(String id) {
+        return (Blob) fetch(id);
+    }
+
+    private static BlobTree fetchBlobTree(String id) {
+        BlobTree tree = (BlobTree) fetch(id);
+        if (tree == null) {
+            tree = new BlobTree();
+        }
+        return tree;
+    }
+
+    private static CommitTree fetchCommitTree(String id) {
+        CommitTree tree = (CommitTree) fetch(id);
+        if (tree == null) {
+            tree = new CommitTree();
+        }
+        return tree;
     }
 
     /** Check if any working file is untracked. */
