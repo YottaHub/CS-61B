@@ -470,6 +470,7 @@ public class Repository {
         if (!branchPath.exists()) {
             exitWithPrint("A branch with that name does not exist.");
         }
+        checkUntracked();
         boolean isConflicted = mergeHelper(branchName);
         // Compose merge message
         String currentBranchName = readContentsAsString(HEAD).split("/")[1];
