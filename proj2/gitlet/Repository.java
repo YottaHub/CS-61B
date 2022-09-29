@@ -223,7 +223,7 @@ public class Repository {
     /** Print out logs for all commits. */
     public static void globalLog() {
         CommitTree global = (CommitTree) new CommitTree().load(GLOBAL);
-        HashMap<String, String> mapping = global.getMapping();
+        TreeMap<String, String> mapping = global.getMapping();
         StringBuilder ids = new StringBuilder();
         for (Map.Entry<String, String> p : mapping.entrySet()) {
             Commit c = (Commit) fetch(p.getKey());
@@ -505,11 +505,14 @@ public class Repository {
                 // modified (not deleted) in the given branch
                 // case E: None | None | New
                 // file is added in the given branch
+                // System.out.printf("case A|E : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
                 checkout(mHead.getID(), name);
                 add(name);
-            } else if (!mAddress.equals(cAddress) && !mAddress.equals(aAddress) && aAddress != cAddress) {
+            } else if (!mAddress.equals(cAddress) && !mAddress.equals(aAddress)
+                    && cAddress != aAddress) {
                 // case G: origin | My M | Ur M |
                 // file differs in three commits
+                // System.out.printf("case G1 : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
                 conflict(currentTree.getBlobID(name), mAddress, name);
                 isConflicted = true;
             }
@@ -523,17 +526,20 @@ public class Repository {
             if (mAddress == null && aAddress == null) {
                 // case D : None | New | None
                 // neither of ancestor and the given branch has this file
+                // System.out.printf("case D : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
                 break;
             } else if (mAddress == null) {
                 if (cAddress.equals(aAddress)) {
                     // case F: origin | origin | absent |
                     // file is same in the split point and current branch, but
                     // deleted in the given branch
+                    // System.out.printf("case F : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
                     remove(name);
                 } else {
                     // case G: origin | My M | Ur M |
                     // file is modified in current branch and deleted in the given
                     // branch(a different modification)
+                    // System.out.printf("case G2 : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
                     conflict(currentTree.getBlobID(name), mAddress, name);
                     isConflicted = true;
                 }

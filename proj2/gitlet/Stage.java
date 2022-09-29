@@ -3,12 +3,13 @@ package gitlet;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class Stage extends BlobTree {
     /** Mapping blobs in <Key filename, Value SHA-1 value> pairs. */
-    private HashMap<String, String> mapping = new HashMap<>();
+    private TreeMap<String, String> mapping = new TreeMap<>();
     /** Record the deleted file before next commit in stage. */
-    private Map<String, String> deleted = new HashMap<>();
+    private TreeMap<String, String> deleted = new TreeMap<>();
     /** SHA-1 value for this blob tree. */
     private String id;
 
@@ -20,7 +21,7 @@ public class Stage extends BlobTree {
         return this.id;
     }
 
-    public HashMap<String, String> getMapping() {
+    public TreeMap<String, String> getMapping() {
         return this.mapping;
     }
 
@@ -36,8 +37,8 @@ public class Stage extends BlobTree {
 
     /** Empty this blob tree. */
     public void empty() {
-        this.mapping = new HashMap<>();
-        this.deleted = new HashMap<>();
+        this.mapping = new TreeMap<>();
+        this.deleted = new TreeMap<>();
         this.id = "";
     }
 

@@ -1,8 +1,8 @@
 package gitlet;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Represent a gitlet blob tree object.
  *  All tree nodes of a blob tree are blobs only.
@@ -13,7 +13,7 @@ import java.util.Map;
  */
 public class BlobTree implements Tree {
     /** Mapping blobs in <Key filename, Value SHA-1 value> pairs. */
-    private HashMap<String, String> mapping = new HashMap<>();
+    private TreeMap<String, String> mapping = new TreeMap<>();
     /** SHA-1 value for this blob tree. */
     private String id;
 
@@ -38,7 +38,7 @@ public class BlobTree implements Tree {
      * @param stage the staging area
      */
     public void merge(Stage stage) {
-        HashMap<String, String> merged = this.mapping;
+        TreeMap<String, String> merged = this.mapping;
         merged.putAll(stage.getMapping());
         for (Map.Entry<String, String> p: stage.getDeleted().entrySet()) {
             merged.remove(p.getKey(), p.getValue());
@@ -49,7 +49,7 @@ public class BlobTree implements Tree {
 
     /** Empty this blob tree. */
     public void empty() {
-        this.mapping = new HashMap<>();
+        this.mapping = new TreeMap<>();
         this.id = "";
     }
 
@@ -68,7 +68,7 @@ public class BlobTree implements Tree {
         return this.id;
     }
 
-    public HashMap<String, String> getMapping() {
+    public TreeMap<String, String> getMapping() {
         return this.mapping;
     }
 

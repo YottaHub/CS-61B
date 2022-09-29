@@ -109,7 +109,8 @@ public class Commit implements Serializable, Dumpable {
         log += this.id + "\n";
         // add merge info
         if (parents[1] != null) {
-            log += "Merge: " + this.parents[0] + "\t" + this.parents[1] + "\n";
+            log += "Merge: " + this.parents[0].substring(0, 7)
+                    + "\t" + this.parents[1].substring(0, 7) + "\n";
         }
         // add time stamp
         // format: "Date: \w\w\w \w\w\w \d+ \d\d:\d\d:\d\d \d\d\d\d [-+]\d\d\d\d"

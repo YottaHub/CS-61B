@@ -3,6 +3,7 @@ package gitlet;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Represent a gitlet commit tree object.
  *  All tree nodes of a commit tree are commits only.
@@ -12,7 +13,7 @@ import java.util.Map;
  */
 public class CommitTree implements Tree {
     /** Record <Key Commit ID, Value commit message> pairs. */
-    private HashMap<String, String> mapping = new HashMap<>();
+    private TreeMap<String, String> mapping = new TreeMap<>();
     /** The latest commit of this branch. */
     private String head;
     /** SHA-1 value of the commit tree. */
@@ -55,14 +56,16 @@ public class CommitTree implements Tree {
         }
     }
 
-    /** Return the commits map of this tree. */
-    public HashMap<String, String> getMapping() {
+    /**
+     * Return the commits map of this tree.
+     */
+    public TreeMap<String, String> getMapping() {
         return this.mapping;
     }
 
     /** Empty this commit tree. */
     public void empty() {
-        this.mapping = new HashMap<>();
+        this.mapping = new TreeMap<>();
         this.id = "";
         this.head = "";
     }
