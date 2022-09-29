@@ -480,8 +480,6 @@ public class Repository {
         commit(msg, mHead.getID());
         if (isConflicted) {
             exitWithPrint("Encountered a merge conflict.");
-        } else {
-            System.out.println(msg);
         }
     }
 
@@ -492,18 +490,9 @@ public class Repository {
         // Fetch current head commit
         Commit cHead = (Commit) fetchHead();
         Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
-        BlobTree divergedTree = (BlobTree) fetch(mHead.getTree());
-        if (divergedTree == null) {
-            divergedTree = new BlobTree();
-        }
-        BlobTree currentTree = (BlobTree) fetch(cHead.getTree());
-        if (currentTree == null) {
-            currentTree = new BlobTree();
-        }
-        BlobTree ancestorTree = (BlobTree) fetch(ancestor.getTree());
-        if (ancestorTree == null) {
-            ancestorTree = new BlobTree();
-        }
+        BlobTree divergedTree = fetchBlobTree(mHead.getTree());
+        BlobTree currentTree = fetchBlobTree(cHead.getTree());
+        BlobTree ancestorTree = fetchBlobTree(ancestor.getTree());
         boolean isConflicted = false;
         for (Map.Entry<String, String> p: divergedTree.getMapping().entrySet()) {
             String name = p.getKey();
@@ -520,6 +509,7 @@ public class Repository {
                 // case A: origin | origin | Modified |
                 // file is same in split point and current branch but
                 // modified (not deleted) in the given branch
+                checkout(mHead.getID(), name);
                 add(name);
             } else if (mAddress.equals(aAddress) && !mAddress.equals(cAddress)) {
                 // case B: origin | Modified | origin |
