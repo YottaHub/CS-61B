@@ -25,7 +25,6 @@ public class BlobTree implements Tree {
         for (Blob b: blobs) {
             this.mapping.put(b.getFile(), b.getID());
         }
-        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** New an empty blob tree. */
@@ -44,14 +43,12 @@ public class BlobTree implements Tree {
             merged.put(p.getKey(), "deleted");
         }
         this.mapping = merged;
-        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     public void merge(BlobTree other) {
         TreeMap<String, String> merged = other.getMapping();
         merged.putAll(this.mapping);
         this.mapping = merged;
-        this.id = Utils.sha1(Utils.serialize(this));
     }
 
     /** Empty this blob tree. */
@@ -104,6 +101,7 @@ public class BlobTree implements Tree {
 
     /** Store this tree and generate its SHA-1 value. */
     public void store(File storePath) {
+        this.id = Utils.sha1(Utils.serialize(this));
         Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 

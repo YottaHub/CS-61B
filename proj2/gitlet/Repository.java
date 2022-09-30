@@ -147,7 +147,7 @@ public class Repository {
         // Convert index to tree
         // If no files have been staged, abort
         Stage stage = Utils.readObject(STAGE, Stage.class);
-        if (relative != null || !stage.isChanged()) {
+        if (relative == null && !stage.isChanged()) {
             exitWithPrint("No changes added to the commit.");
         }
         // Fetch the blob tree of the parent commit if not empty
@@ -159,7 +159,8 @@ public class Repository {
         tracked.merge(stage);
         // Union the tracking files of two commits
         if (relative != null) {
-            tracked.merge((BlobTree) fetch(relative));
+            Commit r = (Commit) fetch(relative);
+            tracked.merge((BlobTree) fetch(r.getTree()));
         }
         // Store the merged blob tree as a completed gitlet object with an ID
         tracked.store(OBJECT_DIR);
@@ -496,34 +497,25 @@ public class Repository {
         Commit cHead = (Commit) fetchHead();
         Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
         BlobTree divergedTree = fetchBlobTree(mHead.getTree());
-        // System.out.println(divergedTree.log());
+        //System.out.println(divergedTree.log());
         BlobTree currentTree = fetchBlobTree(cHead.getTree());
-        // System.out.println(currentTree.log());
+        //System.out.println(currentTree.log());
         BlobTree ancestorTree = fetchBlobTree(ancestor.getTree());
-        // System.out.println(ancestorTree.log());
+        //System.out.println(ancestorTree.log());
         boolean isConflicted = false;
         for (Map.Entry<String, String> p: divergedTree.getMapping().entrySet()) {
             String name = p.getKey();
             String mAddress = p.getValue();
             String cAddress = currentTree.getBlobID(name);
             String aAddress = ancestorTree.getBlobID(name);
-            // System.out.printf("%s %s %s %s%n"
-                     // , name, mAddress, cAddress, aAddress);
-            if (mAddress.equals("deleted") && cAddress != null && cAddress.equals(aAddress) ) {
+            if (mAddress.equals("deleted") && cAddress != null && cAddress.equals(aAddress)) {
                 // case F: origin | origin | absent |
                 // file is same in the split point and current branch, but
                 // deleted in the given branch
-                // System.out.printf("case F-remove : %s %s %s %s%n"
-                        // , name, mAddress, cAddress, aAddress);
                 remove(name);
             } else if (aAddress == null && cAddress != null && cAddress.equals("deleted")
                     && !mAddress.equals("deleted")) {
                 // A very special case that current branch have added this file and deleted
-                // System.out.printf("case sp-hold : %s %s %s %s%n"
-                        // , name, mAddress, cAddress, aAddress);
-                // Stage stage = readObject(STAGE, Stage.class);
-                // stage.addDeletion(name, mAddress);
-                // writeObject(STAGE, stage);
                 break;
             } else if (!mAddress.equals("deleted") && !mAddress.equals(cAddress)
                     && ((cAddress == null && aAddress == null)
@@ -533,8 +525,6 @@ public class Repository {
                 // modified (not deleted) in the given branch
                 // case E: None | None | New
                 // file is added in the given branch
-                // System.out.printf("case A|E-checkout&stage: %s %s %s %s%n"
-                       // , name, mAddress, cAddress, aAddress);
                 checkout(mHead.getID(), name);
                 add(name);
             } else if (!mAddress.equals(cAddress) && !mAddress.equals(aAddress)
@@ -542,8 +532,6 @@ public class Repository {
                     || cAddress != null && !cAddress.equals(aAddress))) {
                 // case G: origin | My M | Ur M |
                 // file differs in three commits
-                // System.out.printf("case G-conflict: %s %s %s %s%n", name
-                        // , mAddress, cAddress, aAddress);
                 conflict(currentTree.getBlobID(name), mAddress, name);
                 isConflicted = true;
             }
