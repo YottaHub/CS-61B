@@ -122,6 +122,31 @@ public class Commit implements Serializable, Dumpable {
         return log;
     }
 
+    /** Compose a verbose version of log on this commit
+     *
+     * @return a string contains useful info about this commit
+     */
+    public String debugLog() {
+        // header of a commit object
+        String log = "===\ncommit ";
+        // add ID
+        log += this.id + "\n";
+        log += "tree " + this.getTree() + "\n";
+        // add merge info
+        if (parents[1] != null) {
+            log += "Merge: " + this.parents[0].substring(0, 7)
+                    + "\t" + this.parents[1].substring(0, 7) + "\n";
+        }
+        // add time stamp
+        // format: "Date: \w\w\w \w\w\w \d+ \d\d:\d\d:\d\d \d\d\d\d [-+]\d\d\d\d"
+        String pattern = "E MMM d HH:mm:ss yyyy Z";
+        SimpleDateFormat dateFormat = new SimpleDateFormat(pattern);
+        log += "Date: " + dateFormat.format(this.timeStamp) + "\n";
+        // add commit message
+        log += this.message + "\n\n";
+        return log;
+    }
+
     /** Store this commit and generate its SHA-1 value. */
     public void store(File storePath) {
         // all dumpable objects must store in "$REPO_DIR/.gitlet/objects/../..."
@@ -139,6 +164,6 @@ public class Commit implements Serializable, Dumpable {
 
     /** Print useful information about this object on System.out. */
     public void dump() {
-        System.out.println(this.log());
+        System.out.println(this.debugLog());
     }
 }

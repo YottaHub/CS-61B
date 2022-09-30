@@ -41,8 +41,15 @@ public class BlobTree implements Tree {
         TreeMap<String, String> merged = this.mapping;
         merged.putAll(stage.getMapping());
         for (Map.Entry<String, String> p: stage.getDeleted().entrySet()) {
-            merged.remove(p.getKey(), p.getValue());
+            merged.put(p.getKey(), "deleted");
         }
+        this.mapping = merged;
+        this.id = Utils.sha1(Utils.serialize(this));
+    }
+
+    public void merge(BlobTree other) {
+        TreeMap<String, String> merged = other.getMapping();
+        merged.putAll(this.mapping);
         this.mapping = merged;
         this.id = Utils.sha1(Utils.serialize(this));
     }
@@ -74,12 +81,7 @@ public class BlobTree implements Tree {
 
     /** Return the SHA-1 value of the target file. */
     public String getBlobID(String filename) {
-        if (this.isContained(filename)) {
-            return this.mapping.get(filename);
-        } else {
-            return null;
-        }
-
+        return this.mapping.get(filename);
     }
 
     /** Compose a verbose and tree-structure version of log on this tree

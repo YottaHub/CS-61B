@@ -147,7 +147,7 @@ public class Repository {
         // Convert index to tree
         // If no files have been staged, abort
         Stage stage = Utils.readObject(STAGE, Stage.class);
-        if (!stage.isChanged()) {
+        if (relative != null || !stage.isChanged()) {
             exitWithPrint("No changes added to the commit.");
         }
         // Fetch the blob tree of the parent commit if not empty
@@ -157,6 +157,10 @@ public class Repository {
         }
         // Union the staging area and tracked files from parent commit
         tracked.merge(stage);
+        // Union the tracking files of two commits
+        if (relative != null) {
+            tracked.merge((BlobTree) fetch(relative));
+        }
         // Store the merged blob tree as a completed gitlet object with an ID
         tracked.store(OBJECT_DIR);
         // Make a commit
@@ -407,7 +411,7 @@ public class Repository {
         // Iterating all files in the blob tree
         for (Map.Entry<String, String> p: workingTree.getMapping().entrySet()) {
             // If a file disappears and not staged
-            if (!workingFileList.contains(p.getKey())
+            if (!p.getValue().equals("deleted") && !workingFileList.contains(p.getKey())
                     && !stage.getDeleted().containsKey(p.getKey())) {
                 coverUp += "%s (deleted)%n".formatted(p.getKey());
             }
@@ -492,58 +496,56 @@ public class Repository {
         Commit cHead = (Commit) fetchHead();
         Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
         BlobTree divergedTree = fetchBlobTree(mHead.getTree());
+        // System.out.println(divergedTree.log());
         BlobTree currentTree = fetchBlobTree(cHead.getTree());
+        // System.out.println(currentTree.log());
         BlobTree ancestorTree = fetchBlobTree(ancestor.getTree());
+        // System.out.println(ancestorTree.log());
         boolean isConflicted = false;
         for (Map.Entry<String, String> p: divergedTree.getMapping().entrySet()) {
             String name = p.getKey();
             String mAddress = p.getValue();
             String cAddress = currentTree.getBlobID(name);
             String aAddress = ancestorTree.getBlobID(name);
-            if (cAddress == aAddress && !mAddress.equals(cAddress)) {
+            // System.out.printf("%s %s %s %s%n"
+                     // , name, mAddress, cAddress, aAddress);
+            if (mAddress.equals("deleted") && cAddress != null && cAddress.equals(aAddress) ) {
+                // case F: origin | origin | absent |
+                // file is same in the split point and current branch, but
+                // deleted in the given branch
+                // System.out.printf("case F-remove : %s %s %s %s%n"
+                        // , name, mAddress, cAddress, aAddress);
+                remove(name);
+            } else if (aAddress == null && cAddress != null && cAddress.equals("deleted")
+                    && !mAddress.equals("deleted")) {
+                // A very special case that current branch have added this file and deleted
+                // System.out.printf("case sp-hold : %s %s %s %s%n"
+                        // , name, mAddress, cAddress, aAddress);
+                // Stage stage = readObject(STAGE, Stage.class);
+                // stage.addDeletion(name, mAddress);
+                // writeObject(STAGE, stage);
+                break;
+            } else if (!mAddress.equals("deleted") && !mAddress.equals(cAddress)
+                    && ((cAddress == null && aAddress == null)
+                    || (cAddress != null  && cAddress.equals(aAddress)))) {
                 // case A: origin | origin | Modified |
                 // file is same in split point and current branch but
                 // modified (not deleted) in the given branch
                 // case E: None | None | New
                 // file is added in the given branch
-                // System.out.printf("case A|E : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
+                // System.out.printf("case A|E-checkout&stage: %s %s %s %s%n"
+                       // , name, mAddress, cAddress, aAddress);
                 checkout(mHead.getID(), name);
                 add(name);
             } else if (!mAddress.equals(cAddress) && !mAddress.equals(aAddress)
-                    && cAddress != aAddress) {
+                    && ((cAddress == null && cAddress != aAddress)
+                    || cAddress != null && !cAddress.equals(aAddress))) {
                 // case G: origin | My M | Ur M |
                 // file differs in three commits
-                // System.out.printf("case G1 : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
+                // System.out.printf("case G-conflict: %s %s %s %s%n", name
+                        // , mAddress, cAddress, aAddress);
                 conflict(currentTree.getBlobID(name), mAddress, name);
                 isConflicted = true;
-            }
-        }
-        // for files absent in the given branch
-        for (Map.Entry<String, String> p: currentTree.getMapping().entrySet()) {
-            String name = p.getKey();
-            String cAddress = p.getValue();
-            String mAddress = divergedTree.getBlobID(name);
-            String aAddress = ancestorTree.getBlobID(name);
-            if (mAddress == null && aAddress == null) {
-                // case D : None | New | None
-                // neither of ancestor and the given branch has this file
-                // System.out.printf("case D : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
-                break;
-            } else if (mAddress == null) {
-                if (cAddress.equals(aAddress)) {
-                    // case F: origin | origin | absent |
-                    // file is same in the split point and current branch, but
-                    // deleted in the given branch
-                    // System.out.printf("case F : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
-                    remove(name);
-                } else {
-                    // case G: origin | My M | Ur M |
-                    // file is modified in current branch and deleted in the given
-                    // branch(a different modification)
-                    // System.out.printf("case G2 : %s %s %s %s%n", name, mAddress, cAddress, aAddress);
-                    conflict(currentTree.getBlobID(name), mAddress, name);
-                    isConflicted = true;
-                }
             }
         }
         return isConflicted;
@@ -689,7 +691,7 @@ public class Repository {
      * @param filename sha-1 value of the object to fetch
      */
     private static Dumpable fetch(String filename) {
-        if (filename == null || filename.equals(""))  {
+        if (filename == null || filename.equals("") || filename.equals("deleted"))  {
             return null;
         }
         File path = join(OBJECT_DIR, filename);
@@ -717,7 +719,12 @@ public class Repository {
             tree = new BlobTree();
         }
         for (Map.Entry<String, String> p: tree.getMapping().entrySet()) {
-            writeContents(join(CWD, p.getKey()), ((Blob) fetch(p.getValue())).getBytes());
+            String filename = p.getKey();
+            String address = p.getValue();
+            if (address != null && !address.equals("deleted")) {
+                writeContents(join(CWD, filename), ((Blob) fetch(address)).getBytes());
+            }
+
         }
         // Clear the staging area
         Stage stage = readObject(STAGE, Stage.class);
