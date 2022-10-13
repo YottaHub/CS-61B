@@ -99,27 +99,27 @@ public class Main {
             }
             case "add-remote" -> {
                 // java gitlet.Main add-remote [remote-name] [remote directory]/.gitlet
-                validateNumArgs(args, 2);
+                validateNumArgs(args, 3);
                 activate().addRemote(args[1], args[2]);
             }
             case "rm-remote" -> {
                 // java gitlet.Main rm-remote [remote-name]
-                validateNumArgs(args, 1);
+                validateNumArgs(args, 2);
                 activate().rmRemote(args[1]);
             }
             case "push" -> {
                 // java gitlet.Main push [remote name] [remote branch name]
-                validateNumArgs(args, 2);
+                validateNumArgs(args, 3);
                 activate().push(args[1], args[2]);
             }
             case "fetch" -> {
                 // java gitlet.Main fetch [remote name] [remote branch name]
-                validateNumArgs(args, 2);
+                validateNumArgs(args, 3);
                 activate().fetchRemote(args[1], args[2]);
             }
             case "pull" -> {
                 // java gitlet.Main pull [remote name] [remote branch name]
-                validateNumArgs(args, 2);
+                validateNumArgs(args, 3);
                 activate().pull(args[1], args[2]);
             }
             default -> exitWithPrint("No command with that name exists.");
