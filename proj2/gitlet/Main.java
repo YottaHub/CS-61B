@@ -90,7 +90,7 @@ public class Main {
             case "reset" -> {
                 // java gitlet.Main reset [commit id]
                 validateNumArgs(args, 2);
-                activate().reset(args[1]);
+                activate().reset(args[1], false);
             }
             case "merge" -> {
                 // java gitlet.Main merge [branch name]
@@ -121,6 +121,9 @@ public class Main {
                 // java gitlet.Main pull [remote name] [remote branch name]
                 validateNumArgs(args, 3);
                 activate().pull(args[1], args[2]);
+            }
+            case "info" -> {
+                activate().info();
             }
             default -> exitWithPrint("No command with that name exists.");
         }

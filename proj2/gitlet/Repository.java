@@ -105,10 +105,9 @@ public class Repository implements Serializable {
         // Store the commit
         save(c);
         // add to current branch
-        File path = join(GITLET_DIR, readContentsAsString(HEAD));
-        CommitTree branch = readObject(path, CommitTree.class);
-        branch.add(c);
-        writeObject(path, branch);
+        CommitTree current = fetchCurrentBranch();
+        current.add(c);
+        saveBranch(current, readContentsAsString(HEAD).split("/")[1]);
         // Rich the global commit zone
         CommitTree global = readObject(GLOBAL, CommitTree.class);
         global.add(c);
@@ -396,7 +395,7 @@ public class Repository implements Serializable {
         }
         // check out the branch head commit
         String head = readObject(branchPath, CommitTree.class).getLast();
-        checkoutCommit(head, false);
+        checkoutCommit(head, false, false);
         // Move HEAD to the new branch
         writeContents(HEAD, "refs/%s".formatted(branchName));
     }
@@ -406,10 +405,12 @@ public class Repository implements Serializable {
      * @param commitId uid of a commit
      * @param changeHead need to reset or not
      */
-    private void checkoutCommit(String commitId, boolean changeHead) {
+    private void checkoutCommit(String commitId, boolean changeHead, boolean soft) {
         Commit c = fetchCommit(commitId);
         // check if any file in the working directory is untracked
-        checkUntracked();
+        if (!soft) {
+            checkUntracked();
+        }
         // All working files in current working directory
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
         // Any files that are tracked in the current branch but are not
@@ -446,8 +447,8 @@ public class Repository implements Serializable {
      *
      * @param commitId the commit resetting to
      */
-    public void reset(String commitId) {
-        checkoutCommit(commitId, true);
+    public void reset(String commitId, boolean soft) {
+        checkoutCommit(commitId, true, soft);
     }
 
     /* Branch */
@@ -548,7 +549,7 @@ public class Repository implements Serializable {
         // If the split point is the current branch
         if (ancestor.getID().equals(cHead.getID())) {
             // checkout the given branch
-            checkoutCommit(mHead.getID(), true);
+            checkoutCommit(mHead.getID(), true, false);
             exitWithPrint("Current branch fast-forwarded.");
         }
         // If the split point is the same commit as the given branch
@@ -596,6 +597,7 @@ public class Repository implements Serializable {
     }
 
     /** Find the lowest common ancestor of two commits.
+     *  Require an intersection of two branches.
      *
      * @param cHead head commit of current working branch
      * @param mHead head commit of another working branch
@@ -652,7 +654,7 @@ public class Repository implements Serializable {
             exitWithPrint("A remote with that name already exists.");
         }
         // write the location of remote directory in refs/remote/origin/origin
-        writeObject(join(remote, origin), directory);
+        writeContents(remote, directory);
     }
 
     /** Remove information associated with the given remote name.
@@ -669,6 +671,10 @@ public class Repository implements Serializable {
         remote.delete();
     }
 
+    public void info() {
+        System.out.println(CWD);
+    }
+
     /** Append the current branch’s commits to the end of the given branch at
      *  the given remote.
      *
@@ -677,14 +683,24 @@ public class Repository implements Serializable {
      */
     public void push(String origin, String main) {
         setUpRemoteEnv(origin);
-        CommitTree remoteBranch = ORIGIN.fetchCommitTree(main);
-        Commit remoteHead = ORIGIN.fetchCommit(remoteBranch.getLast());
         CommitTree currentBranch = this.fetchCurrentBranch();
         Commit currentHead = this.fetchCommit(currentBranch.getLast());
-        Commit ancestor = findLatestAncestor(currentHead, remoteHead, this, ORIGIN);
-        // head commit in remote must be a history commit in current working branch
-        if (!ancestor.getID().equals(remoteHead.getID())) {
-            exitWithPrint("Please pull down remote changes before pushing.");
+        CommitTree remoteBranch = ORIGIN.fetchCommitTree(main);
+        Commit ancestor;
+        if (remoteBranch == null) {
+            remoteBranch = new CommitTree();
+            Commit temp = currentHead;
+            while(temp.getParent() != "") {
+                temp = fetchCommit(temp.getParent());
+            }
+            ancestor = temp;
+        } else {
+            Commit remoteHead = ORIGIN.fetchCommit(remoteBranch.getLast());
+            ancestor = findLatestAncestor(currentHead, remoteHead, this, ORIGIN);
+            // head commit in remote must be a history commit in current working branch
+            if (!ancestor.getID().equals(remoteHead.getID())) {
+                exitWithPrint("Please pull down remote changes before pushing.");
+            }
         }
         Commit c = currentHead;
         // copy all objects from current head commit to remote head commit into $REMOTE$/objects
@@ -694,20 +710,22 @@ public class Repository implements Serializable {
             ORIGIN.save(tree);
             // store blobs in tree
             for (Map.Entry<String, String> blob : tree.getMapping().entrySet()) {
-                ORIGIN.save(fetchBlob(blob.getValue()));
+                ORIGIN.save(this.fetchBlob(blob.getValue()));
             }
             ORIGIN.update(c);
+            remoteBranch.add(c);
             // fetch next commit
-            c = fetchCommit(c.getParent());
+            c = this.fetchCommit(c.getParent());
         }
         remoteBranch.setLast(currentHead);
         // finally, update the branch
         ORIGIN.saveBranch(remoteBranch, main);
         // one more step, reset remote into same status as current head commit
-        ORIGIN.reset(currentHead.getID());
+        ORIGIN.reset(currentHead.getID(), true);
     }
 
     private void setUpRemoteEnv(String origin) {
+        // see remote origin added
         File remoteDir = new File(readContentsAsString(join(REMOTE_DIR, origin)));
         if (!remoteDir.exists()) {
             exitWithPrint("Remote directory not found.");
