@@ -73,6 +73,7 @@ public class Repository implements Serializable {
     private static Repository ORIGIN;
 
 
+
     /* ***************************************************************
        ********************    Main Methods    ***********************
        *************************************************************** */
@@ -108,9 +109,9 @@ public class Repository implements Serializable {
         branch.add(c);
         writeObject(path, branch);
         // Rich the global commit zone
-        CommitTree global = Utils.readObject(GLOBAL, CommitTree.class);
+        CommitTree global = readObject(GLOBAL, CommitTree.class);
         global.add(c);
-        Utils.writeObject(GLOBAL, global);
+        writeObject(GLOBAL, global);
     }
 
     /** Adds an input file to the staging area, Staging an already-staged
@@ -119,12 +120,12 @@ public class Repository implements Serializable {
      *
      *  @param filename the file adds to the staging area
      */
-    public static void add(String filename) {
+    public  void add(String filename) {
         // Convert input file to blob object
         Blob b = new Blob(checkFile(filename, "File does not exist."));
         // Store the blob
         b.store(OBJECT_DIR);
-        Stage stage = Utils.readObject(STAGE, Stage.class);
+        Stage stage = readObject(STAGE, Stage.class);
         // Put the blob into the stage
         BlobTree workingTree = fetchTrackedTree(fetchHead());
         if (workingTree.isContained(filename)
@@ -136,7 +137,7 @@ public class Repository implements Serializable {
             stage.add(b);
         }
         // Save staging area into index
-        Utils.writeObject(STAGE, stage);
+        writeObject(STAGE, stage);
     }
 
     /** Saves a snapshot of tracked files in the current commit and staging area.
@@ -150,7 +151,7 @@ public class Repository implements Serializable {
      * @param msg commit message
      * @param relative null or name of another branch
      */
-    public static Commit commit(String msg, String relative) {
+    public  Commit commit(String msg, String relative) {
         // Every commit must have a non-blank message
         if (msg.equals("")) {
             exitWithPrint("Please enter a commit message.");
@@ -158,7 +159,7 @@ public class Repository implements Serializable {
         // Fetch the parent commit
         Commit parent = fetchHead();
         // If no files have been staged, abort
-        Stage stage = Utils.readObject(STAGE, Stage.class);
+        Stage stage = readObject(STAGE, Stage.class);
         if (relative == null && !stage.isChanged()) {
             exitWithPrint("No changes added to the commit.");
         }
@@ -195,11 +196,11 @@ public class Repository implements Serializable {
      *
      * @param filename file to remove
      */
-    public static void remove(String filename) {
+    public  void remove(String filename) {
         // Error message of this method
         String msg = "No reason to remove the file.";
         // Check if the file is staged
-        Stage stage = Utils.readObject(STAGE, Stage.class);
+        Stage stage = readObject(STAGE, Stage.class);
         if (stage.isContained(filename)) {
             // If this file is found in staging area, unstage it
             String id = stage.unstage(filename);
@@ -219,13 +220,13 @@ public class Repository implements Serializable {
             }
         }
         // save the staging area
-        Utils.writeObject(STAGE, stage);
+        writeObject(STAGE, stage);
     }
 
     /* Log & Status */
 
     /** Print out logs from current HEAD to the starting commit of current branch. */
-    public static void log() {
+    public  void log() {
         Commit head = fetchHead();
         System.out.print(verboseLog(head));
     }
@@ -236,7 +237,7 @@ public class Repository implements Serializable {
      *  @param head the starting commit
      *  @return collected and ordered commit info
      */
-    private static String verboseLog(Commit head) {
+    private  String verboseLog(Commit head) {
         StringBuilder log = new StringBuilder();
         while (head != null) {
             log.append(head.log());
@@ -246,7 +247,7 @@ public class Repository implements Serializable {
     }
 
     /** Print out logs for all commits. */
-    public static void globalLog() {
+    public  void globalLog() {
         // not in good style
         CommitTree global = (CommitTree) new CommitTree().load(GLOBAL);
         TreeMap<String, String> mapping = global.getMapping();
@@ -263,8 +264,8 @@ public class Repository implements Serializable {
      *
      *  @param msg commit message to find
      */
-    public static void find(String msg) {
-        CommitTree global = Utils.readObject(GLOBAL, CommitTree.class);
+    public  void find(String msg) {
+        CommitTree global = readObject(GLOBAL, CommitTree.class);
         String ids = global.findMsg(msg);
         if (ids.equals("")) {
             exitWithPrint("Found no commit with that message.");
@@ -277,7 +278,7 @@ public class Repository implements Serializable {
      * branch with a `*`. Also displays what files have been staged for
      * addition or removal.
      */
-    public static void status() {
+    public  void status() {
         String coverUp = "=== Branches ===\n";
         String branchPart = "";
         List<String> branchList = plainFilenamesIn(REFS_DIR);
@@ -343,7 +344,7 @@ public class Repository implements Serializable {
      *
      *  @param filename name of target file
      */
-    public static void checkout(String filename) {
+    public  void checkout(String filename) {
         Commit head = fetchHead();
         BlobTree tree = fetchBlobTree(head.getTree());
         if (tree.isContained(filename)) {
@@ -363,7 +364,7 @@ public class Repository implements Serializable {
      *  @param commitID uid or short uid of a commit
      *  @param filename name of a file in this commit
      */
-    public static void checkout(String commitID, String filename) {
+    public  void checkout(String commitID, String filename) {
         Commit checked = fetchCommit(commitID);
         BlobTree tree = fetchBlobTree(checked.getTree());
         if (tree.isContained(filename)) {
@@ -381,7 +382,7 @@ public class Repository implements Serializable {
      *
      *  @param branchName the branch to be the head
      */
-    public static void checkoutBranch(String branchName) {
+    public  void checkoutBranch(String branchName) {
         // checkout current branch
         if (isHead(branchName)) {
             exitWithPrint("No need to checkout the current branch.");
@@ -402,7 +403,7 @@ public class Repository implements Serializable {
      * @param commitId uid of a commit
      * @param changeHead need to reset or not
      */
-    private static void checkoutCommit(String commitId, boolean changeHead) {
+    private  void checkoutCommit(String commitId, boolean changeHead) {
         Commit c = fetchCommit(commitId);
         // check if any file in the working directory is untracked
         checkUntracked();
@@ -442,7 +443,7 @@ public class Repository implements Serializable {
      *
      * @param commitId the commit resetting to
      */
-    public static void reset(String commitId) {
+    public  void reset(String commitId) {
         checkoutCommit(commitId, true);
     }
 
@@ -453,7 +454,7 @@ public class Repository implements Serializable {
      *
      * @param branchName name of the new branch
      */
-    public static void branch(String branchName) {
+    public  void branch(String branchName) {
         File branchPath = join(REFS_DIR, branchName);
         if (branchPath.exists()) {
             // If a branch with the given name already exists, exits
@@ -468,7 +469,7 @@ public class Repository implements Serializable {
     }
 
     /** Deletes the branch with the given name. */
-    public static void removeBranch(String branchName) {
+    public  void removeBranch(String branchName) {
         // Check if it is current working branch
         if (isHead(branchName)) {
             exitWithPrint("Cannot remove the current branch.");
@@ -497,9 +498,9 @@ public class Repository implements Serializable {
      *
      * @param branchName name of another branch
      */
-    public static void merge(String branchName) {
+    public  void merge(String branchName) {
         // Check if there are uncommitted changes
-        Stage stage = Utils.readObject(STAGE, Stage.class);
+        Stage stage = readObject(STAGE, Stage.class);
         if (stage.isChanged()) {
             exitWithPrint("You have uncommitted changes.");
         }
@@ -526,7 +527,7 @@ public class Repository implements Serializable {
         }
     }
 
-    private static boolean mergeHelper(String branchName) {
+    private  boolean mergeHelper(String branchName) {
         // Fetch head commit of the given branch
         Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName),
                 CommitTree.class).getLast());
@@ -589,7 +590,7 @@ public class Repository implements Serializable {
      * @param mHead head commit of another branch
      * @return their lowest common ancestor
      */
-    private static Commit findLatestAncestor(Commit cHead, Commit mHead) {
+    private  Commit findLatestAncestor(Commit cHead, Commit mHead) {
         // Find the latest common ancestor
         Commit mBack = mHead;
         Commit cBack = cHead;
@@ -605,7 +606,7 @@ public class Repository implements Serializable {
     }
 
     /** Adapts the contents of conflicted files. */
-    private static void conflict(String a, String b, String name) {
+    private  void conflict(String a, String b, String name) {
         Blob current = (Blob) fetch(a);
         Blob given = (Blob) fetch(b);
         StringBuilder content = new StringBuilder("<<<<<<< HEAD\n");
@@ -629,7 +630,7 @@ public class Repository implements Serializable {
      * @param origin name of remote Repository
      * @param directory location of remote directory
      */
-    public static void addRemote(String origin, String directory) {
+    public  void addRemote(String origin, String directory) {
         // replace "/" with "\" on Windows system
         directory = directory.replaceAll("/", Matcher.quoteReplacement(File.separator));
         // store the name of remote directory in file named with given string
@@ -644,7 +645,7 @@ public class Repository implements Serializable {
      *
      * @param target remote to delete
      */
-    public static void rmRemote(String target) {
+    public  void rmRemote(String target) {
         // disconnect with the target remote
         File remote = join(REMOTE_DIR, target);
         if (!remote.exists()) {
@@ -653,53 +654,53 @@ public class Repository implements Serializable {
         restrictedDelete(remote);
     }
 
-    /** Append the current branch’s commits to the end of the given branch at
-     *  the given remote.
-     *
-     * @param origin target remote to push
-     * @param main target branch in the remote
-     */
-    public void push(String origin, String main) {
-        setUpRemoteEnv(origin);
-        CommitTree remoteBranch = ORIGIN.fetchCommitTree(main);
-        CommitTree currentBranch = this.fetchCurrentBranch();
-        Commit remoteHead = ORIGIN.fetchCommit(remoteBranch.getLast());
-        Commit currentHead = this.fetchCommit(currentBranch.getLast());
-        Commit ancestor = findLatestAncestor(currentHead, remoteHead, OBJECT_DIR, WAREHOUSE);
-        // head commit in remote must be a history commit in current working branch
-        if (!ancestor.getID().equals(remoteHead.getID())) {
-            exitWithPrint("Please pull down remote changes before pushing.");
-        }
-        Commit c = currentHead;
-        // copy all objects from current head commit to remote head commit into $REMOTE$/objects
-        while (c.getID().equals(ancestor.getID())) {
-            remoteBranch.add(c);
-            // store commit
-            c.store(WAREHOUSE);
-            // store blob tree
-            BlobTree tree = (BlobTree) fetch(c.getTree(), GITLET_DIR);
-            tree.store(WAREHOUSE);
-            // store blobs in tree
-            for (Map.Entry<String, String> blob : tree.getMapping().entrySet()) {
-                fetch(blob.getValue(), GITLET_DIR).store(WAREHOUSE);
-            }
-            // fetch next commit
-            c = (Commit) fetch(c.getParent(), GITLET_DIR);
-        }
-        remoteBranch.setLast(currentHead);
-        // finally, update the branch
-        remoteBranch.store(MAIN);
-        // one more step, reset remote into same status as current head commit
-        reset(currentHead.getID(), );
-    }
-
-    private static void setUpRemoteEnv(String origin) {
-        File remoteDir = new File(readContentsAsString(join(REMOTE_DIR, origin));
-        if (!remoteDir.exists()) {
-            exitWithPrint("Remote directory not found.");
-        }
-        ORIGIN = Repository.activate(remoteDir);
-    }
+//    /** Append the current branch’s commits to the end of the given branch at
+//     *  the given remote.
+//     *
+//     * @param origin target remote to push
+//     * @param main target branch in the remote
+//     */
+//    public  void push(String origin, String main) {
+//        setUpRemoteEnv(origin);
+//        CommitTree remoteBranch = ORIGIN.fetchCommitTree(main);
+//        CommitTree currentBranch = fetchCurrentBranch();
+//        Commit remoteHead = ORIGIN.fetchCommit(remoteBranch.getLast());
+//        Commit currentHead = this.fetchCommit(currentBranch.getLast());
+//        Commit ancestor = findLatestAncestor(currentHead, remoteHead, OBJECT_DIR, WAREHOUSE);
+//        // head commit in remote must be a history commit in current working branch
+//        if (!ancestor.getID().equals(remoteHead.getID())) {
+//            exitWithPrint("Please pull down remote changes before pushing.");
+//        }
+//        Commit c = currentHead;
+//        // copy all objects from current head commit to remote head commit into $REMOTE$/objects
+//        while (c.getID().equals(ancestor.getID())) {
+//            remoteBranch.add(c);
+//            // store commit
+//            c.store(WAREHOUSE);
+//            // store blob tree
+//            BlobTree tree = (BlobTree) fetch(c.getTree(), GITLET_DIR);
+//            tree.store(WAREHOUSE);
+//            // store blobs in tree
+//            for (Map.Entry<String, String> blob : tree.getMapping().entrySet()) {
+//                fetch(blob.getValue(), GITLET_DIR).store(WAREHOUSE);
+//            }
+//            // fetch next commit
+//            c = (Commit) fetch(c.getParent(), GITLET_DIR);
+//        }
+//        remoteBranch.setLast(currentHead);
+//        // finally, update the branch
+//        remoteBranch.store(MAIN);
+//        // one more step, reset remote into same status as current head commit
+//        reset(currentHead.getID(), );
+//    }
+//
+//    private  void setUpRemoteEnv(String origin) {
+//        File remoteDir = new File(readContentsAsString(join(REMOTE_DIR, origin));
+//        if (!remoteDir.exists()) {
+//            exitWithPrint("Remote directory not found.");
+//        }
+//        ORIGIN = Repository.activate(remoteDir);
+//    }
 
 
     /* ***************************************************************
@@ -712,6 +713,8 @@ public class Repository implements Serializable {
     public static Repository activate(File repoDir) {
         return readObject(join(repoDir, "REPO"), Repository.class);
     }
+
+    public Repository() { }
 
     /** Set up persistence for a gitlet repository. */
     private static void buildRepo() {
@@ -748,8 +751,8 @@ public class Repository implements Serializable {
      * @param msg error message
      * @return the name of the found file or null
      */
-    private static String checkFile(String filename, String msg) {
-        File filePath = Utils.join(CWD, filename);
+    private String checkFile(String filename, String msg) {
+        File filePath = join(CWD, filename);
         // If the file does not exist, abort
         if (!filePath.exists()) {
             exitWithPrint(msg);
@@ -763,7 +766,7 @@ public class Repository implements Serializable {
      *
      * @return if the given branch is the current branch or not
      */
-    private static boolean isHead(String branchName) {
+    private boolean isHead(String branchName) {
         String current = readContentsAsString(HEAD);
         return current.equals("refs/" + branchName);
     }
@@ -775,7 +778,7 @@ public class Repository implements Serializable {
      * @param shortId short-uid for an object
      * @return full-length uid or null
      */
-    private static String autoComplete(String shortId) {
+    private  String autoComplete(String shortId) {
         List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
         if (fileList == null) {
             return null;
@@ -803,7 +806,7 @@ public class Repository implements Serializable {
      *
      * @param filename sha-1 value of the object to fetch
      */
-    private static Dumpable fetch(String filename) {
+    private  Dumpable fetch(String filename) {
         // illegal filename
         if (filename == null || filename.equals("") || filename.equals("deleted"))  {
             return null;
@@ -820,7 +823,7 @@ public class Repository implements Serializable {
      *
      * @return the latest commit in current branch
      */
-    private Commit fetchHead() {
+    private  Commit fetchHead() {
         File branch = join(GITLET_DIR, readContentsAsString(HEAD));
         File parentDir = join(OBJECT_DIR, readObject(branch, CommitTree.class).getLast());
         return (Commit) new Commit().load(parentDir);
@@ -830,7 +833,7 @@ public class Repository implements Serializable {
      *
      * @return current branch
      */
-    public CommitTree fetchCurrentBranch() {
+    public  CommitTree fetchCurrentBranch() {
         return (CommitTree) new CommitTree().load(join(GITLET_DIR, readContentsAsString(HEAD)));
     }
 
@@ -839,7 +842,7 @@ public class Repository implements Serializable {
      * @param head head commit of current branch
      * @return a blob tree contains all tracking files
      */
-    public BlobTree fetchTrackedTree(Commit head) {
+    private  BlobTree fetchTrackedTree(Commit head) {
         // The blob tree of the target commit
         BlobTree workingTree = fetchBlobTree(head.getTree());
         // Merge the stage and the working tree of current commit
@@ -851,7 +854,7 @@ public class Repository implements Serializable {
      *
      * @param commitId uid of target commit
      */
-    public Commit fetchCommit(String commitId) {
+    private  Commit fetchCommit(String commitId) {
         // for short-uid cases
         Commit c = (Commit) fetch(autoComplete(commitId));
         if (c == null) {
@@ -860,11 +863,11 @@ public class Repository implements Serializable {
         return c;
     }
 
-    public Blob fetchBlob(String id) {
+    private  Blob fetchBlob(String id) {
         return (Blob) fetch(id);
     }
 
-    public BlobTree fetchBlobTree(String id) {
+    private  BlobTree fetchBlobTree(String id) {
         BlobTree tree = (BlobTree) fetch(id);
         if (tree == null) {
             tree = new BlobTree();
@@ -872,7 +875,7 @@ public class Repository implements Serializable {
         return tree;
     }
 
-    public CommitTree fetchCommitTree(String id) {
+    private  CommitTree fetchCommitTree(String id) {
         CommitTree tree = (CommitTree) fetch(id);
         if (tree == null) {
             tree = new CommitTree();
@@ -883,7 +886,7 @@ public class Repository implements Serializable {
     /* Others */
 
     /** Check if any working file is untracked. */
-    private static void checkUntracked() {
+    private  void checkUntracked() {
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
         BlobTree workingTree = fetchTrackedTree(fetchHead());
         for (String file : workingFileList) {

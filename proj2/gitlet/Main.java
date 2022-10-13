@@ -1,12 +1,17 @@
 package gitlet;
 
+import java.io.File;
+
 import static gitlet.Repository.*;
+import static gitlet.Utils.join;
 
 /** Driver class for Gitlet - a subset of the Git version-control system.
  *
  *  @author Y. Y. Y
  */
 public class Main {
+    /** The .gitlet directory. */
+    public static final File GITLET_DIR = join(System.getProperty("user.dir"), ".gitlet");
 
     /** Usage: java gitlet.Main ARGS, where ARGS contains
      *  <COMMAND> <OPERAND1> <OPERAND2> ...
@@ -24,102 +29,88 @@ public class Main {
                 init();
             }
             case "add" -> {
-                checkRequirement();
                 validateNumArgs(args, 2);
-                add(args[1]);
+                activate().add(args[1]);
             }
             case "commit" -> {
-                checkRequirement();
                 validateNumArgs(args, 2);
-                commit(args[1], null);
+                activate().commit(args[1], null);
             }
             case "rm" -> {
                 // java gitlet.Main rm [file name]
-                checkRequirement();
                 validateNumArgs(args, 2);
-                remove(args[1]);
+                activate().remove(args[1]);
             }
             case "log" -> {
                 // java gitlet.Main log
-                checkRequirement();
                 validateNumArgs(args, 1);
-                log();
+                activate().log();
             }
             case "global-log" -> {
                 // java gitlet.Main global-log
-                checkRequirement();
                 validateNumArgs(args, 1);
-                globalLog();
+                activate().globalLog();
             }
             case "checkout" -> {
-                checkRequirement();
                 if (args.length == 3) {
                     // java gitlet.Main checkout -- [file name]
                     if (!args[1].equals("--"))
                         exitWithPrint("Incorrect operands.");
-                    checkout(args[2]);
+                    activate().checkout(args[2]);
                 } else if (args.length == 4) {
                     // java gitlet.Main checkout [commit id] -- [file name]
                     if (!args[2].equals("--"))
                         exitWithPrint("Incorrect operands.");
-                    checkout(args[1], args[3]);
+                    activate().checkout(args[1], args[3]);
                 } else if (args.length == 2) {
                     // java gitlet.Main checkout [branch name]
-                    checkoutBranch(args[1]);
+                    activate().checkoutBranch(args[1]);
                 } else exitWithPrint("Incorrect operands.");
             }
             case "find" -> {
                 // java gitlet.Main find [commit message]
-                checkRequirement();
                 validateNumArgs(args, 2);
-                find(args[1]);
+                activate().find(args[1]);
             }
             case "branch" -> {
                 // java gitlet.Main branch [branch name]
-                checkRequirement();
                 validateNumArgs(args, 2);
-                branch(args[1]);
+                activate().branch(args[1]);
             }
             case "rm-branch" -> {
                 // java gitlet.Main rm-branch [branch name]
-                checkRequirement();
                 validateNumArgs(args, 2);
-                removeBranch(args[1]);
+                activate().removeBranch(args[1]);
             }
             case "status" -> {
                 // java gitlet.Main status
-                checkRequirement();
                 validateNumArgs(args, 1);
-                status();
+                activate().status();
             }
             case "reset" -> {
                 // java gitlet.Main reset [commit id]
-                checkRequirement();
                 validateNumArgs(args, 2);
-                reset(args[1]);
+                activate().reset(args[1]);
             }
             case "merge" -> {
                 // java gitlet.Main merge [branch name]
-                checkRequirement();
                 validateNumArgs(args, 2);
-                merge(args[1]);
+                activate().merge(args[1]);
             }
             case "add-remote" -> {
                 // java gitlet.Main add-remote [remote-name] [remote directory]/.gitlet
-                checkRequirement();
                 validateNumArgs(args, 2);
-                addRemote(args[0], args[1]);
+                activate().addRemote(args[1], args[2]);
             }
             case "rm-remote" -> {
                 // java gitlet.Main rm-remote [remote-name]
-                checkRequirement();
                 validateNumArgs(args, 1);
-                rmRemote(args[0]);
+                activate().rmRemote(args[1]);
             }
             case "push" -> {
                 // java gitlet.Main push [remote name] [remote branch name]
-                checkRequirement();
                 validateNumArgs(args, 2);
+                // activate().push(args[1], args[2]);
             }
             default -> exitWithPrint("No command with that name exists.");
         }
@@ -137,13 +128,15 @@ public class Main {
             exitWithPrint("Incorrect operands.");
     }
 
-    /**
-     *  Check the existence of an initialized Gitlet working
+    /** Check the existence of an initialized Gitlet working
      *  directory before executing the command. Exit the
      *  program with error message if not.
+     *
+     * @return the working gitlet repository
      */
-    public static void checkRequirement() {
+    public static Repository activate() {
         if (!Repository.checkEnv())
             exitWithPrint("Not in an initialized Gitlet directory.");
+        return Repository.activate(GITLET_DIR);
     }
 }
