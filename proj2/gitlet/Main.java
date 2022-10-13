@@ -7,6 +7,7 @@ import static gitlet.Repository.*;
  *  @author Y. Y. Y
  */
 public class Main {
+
     /** Usage: java gitlet.Main ARGS, where ARGS contains
      *  <COMMAND> <OPERAND1> <OPERAND2> ...
      */
