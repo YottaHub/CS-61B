@@ -1,11 +1,8 @@
 package gitlet;
 
-import java.io.IOException;
-import java.util.Objects;
-
 import static gitlet.Repository.*;
 
-/** Driver class for Gitlet, a subset of the Git version-control system.
+/** Driver class for Gitlet - a subset of the Git version-control system.
  *
  *  @author Y. Y. Y
  */
@@ -105,6 +102,23 @@ public class Main {
                 checkRequirement();
                 validateNumArgs(args, 2);
                 merge(args[1]);
+            }
+            case "add-remote" -> {
+                // java gitlet.Main add-remote [remote-name] [remote directory]/.gitlet
+                checkRequirement();
+                validateNumArgs(args, 2);
+                addRemote(args[0], args[1]);
+            }
+            case "rm-remote" -> {
+                // java gitlet.Main rm-remote [remote-name]
+                checkRequirement();
+                validateNumArgs(args, 1);
+                rmRemote(args[0]);
+            }
+            case "push" -> {
+                // java gitlet.Main push [remote name] [remote branch name]
+                checkRequirement();
+                validateNumArgs(args, 2);
             }
             default -> exitWithPrint("No command with that name exists.");
         }

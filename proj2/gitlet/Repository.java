@@ -1,7 +1,9 @@
 package gitlet;
 
 import java.io.File;
+import java.io.Serializable;
 import java.util.*;
+import java.util.regex.Matcher;
 
 import static gitlet.Utils.*;
 
@@ -9,9 +11,11 @@ import static gitlet.Utils.*;
  *
  *  @author Y. Y. Y
  */
-public class Repository {
+public class Repository implements Serializable {
     /*  Visualization of a gitlet repository
-        .gitlet (repository)
+        .gitlet (top folder)
+        |
+        +- REPO (Repository)
         |
         +- objects (directory)
         |  |
@@ -25,15 +29,17 @@ public class Repository {
         |
         +- HEAD (file, contents = "refs/master")
         |
-        +- logs (directory)
-        |  |
-        |  + master (plain text, content = [8b0d5, bc04f])
-        |
         +- refs (directory)
         |  |
         |  + master (CommitTree, set = {8b0d5: "init commit"; bc04f: "add v1.txt"})
+        |  |
+        |  + remotes (folder)
+        |       |
+        |       + origin(file, contents = name of remote directory)
         |
-        +- index (Stage, added = {}, deleted = {})
+        +- index (Stage)
+        |
+        +- global (CommitTree)
      */
 
     /* DIRECTORIES */
@@ -51,6 +57,8 @@ public class Repository {
 
     /* FILES */
 
+    /** The repository object. */
+    private static final File REPO = join(GITLET_DIR, "REPO");
     /** The master branch. */
     private static final File MASTER = join(REFS_DIR, "master");
     /** Collect global commits. */
@@ -59,22 +67,21 @@ public class Repository {
     private static final File HEAD = join(GITLET_DIR, "HEAD");
     /** The staging area. */
     private static final File STAGE = join(GITLET_DIR, "index");
-    /** The origin remote repository. */
-    private static final File ORIGIN = join(REMOTE_DIR, "origin");
+
 
     /* ***************************************************************
        ********************    Main Methods    ***********************
        *************************************************************** */
 
+    /* Basic Functions */
 
     /** The first step of creating a local gitlet working directory.
      *  Initialize a gitlet repository with fixed massage "init
      *  commit" and a default time stamp.
      */
     public static void init() {
-        // Set up persistence
+        // Set up persistence for a repository
         buildRepo();
-
         // New the first commit
         Commit c = new Commit(new Date(0), "initial commit", "", "");
         // Store the commit
@@ -84,20 +91,22 @@ public class Repository {
         // Branch is a CommitTree object that stores a commit history
         // Stores the latest commit in the master branch by default
         update(c);
+    }
+
+    /** Update current branch and global branch after a commit.
+     *
+     * @param c the added commit
+     */
+    private static void update(Commit c) {
+        // add to current branch
+        File path = join(GITLET_DIR, readContentsAsString(HEAD));
+        CommitTree branch = readObject(path, CommitTree.class);
+        branch.add(c);
+        writeObject(path, branch);
         // Rich the global commit zone
         CommitTree global = Utils.readObject(GLOBAL, CommitTree.class);
         global.add(c);
         Utils.writeObject(GLOBAL, global);
-    }
-
-    /** Update the current branch after a commit. */
-    private static void update(Commit c) {
-        // combine .gitlet and the branch refs in HEAD
-        File path = join(GITLET_DIR, readContentsAsString(HEAD));
-        // load it as parent commit, using some tricky way
-        CommitTree branch = readObject(path, CommitTree.class);
-        branch.add(c);
-        writeObject(path, branch);
     }
 
     /** Adds an input file to the staging area, Staging an already-staged
@@ -113,7 +122,7 @@ public class Repository {
         b.store(OBJECT_DIR);
         Stage stage = Utils.readObject(STAGE, Stage.class);
         // Put the blob into the stage
-        BlobTree workingTree = fetchTrackedTree();
+        BlobTree workingTree = fetchTrackedTree(fetchHead());
         if (workingTree.isContained(filename)
                 && workingTree.getBlobID(filename).equals(b.getID())
                 && !stage.isDeleted(filename)) {
@@ -122,8 +131,7 @@ public class Repository {
         } else {
             stage.add(b);
         }
-        // Save the stage
-        // Note: Differ from the @code{store}
+        // Save staging area into index
         Utils.writeObject(STAGE, stage);
     }
 
@@ -135,7 +143,8 @@ public class Repository {
      *  the time of commit, in which case the commit will now include the version
      *  of the file that was staged instead of the version it got from its parent.
      *
-     *  @param msg commit message
+     * @param msg commit message
+     * @param relative null or name of another branch
      */
     public static Commit commit(String msg, String relative) {
         // Every commit must have a non-blank message
@@ -143,8 +152,7 @@ public class Repository {
             exitWithPrint("Please enter a commit message.");
         }
         // Fetch the parent commit
-        Commit parent = (Commit) fetchHead();
-        // Convert index to tree
+        Commit parent = fetchHead();
         // If no files have been staged, abort
         Stage stage = Utils.readObject(STAGE, Stage.class);
         if (relative == null && !stage.isChanged()) {
@@ -153,7 +161,7 @@ public class Repository {
         // Fetch the blob tree of the parent commit if not empty
         BlobTree tracked = new BlobTree();
         if (parent.getTree() != null && !parent.getTree().equals("")) {
-            tracked = (BlobTree) fetch(parent.getTree());
+            tracked = (BlobTree) fetchBlobTree(parent.getTree());
         }
         // Union the staging area and tracked files from parent commit
         tracked.merge(stage);
@@ -165,23 +173,14 @@ public class Repository {
         // Store the merged blob tree as a completed gitlet object with an ID
         tracked.store(OBJECT_DIR);
         // Make a commit
-        Commit c;
-        if (relative == null) {
-            c = new Commit(new Date(), msg, parent.getID(), tracked.getID());
-        } else {
-            c = new Commit(new Date(), msg, parent.getID(), relative, tracked.getID());
-        }
+        Commit c = new Commit(new Date(), msg, parent.getID(), relative, tracked.getID());
         // Store the commit
         c.store(OBJECT_DIR);
-        // Update the current branch
+        // Update current branch and global branch
         update(c);
         // The staging area is cleared after a commit
         stage.empty();
         writeObject(STAGE, stage);
-        // Rich the global commit zone
-        CommitTree global = readObject(GLOBAL, CommitTree.class);
-        global.add(c);
-        Utils.writeObject(GLOBAL, global);
         return c;
     }
 
@@ -204,9 +203,9 @@ public class Repository {
             join(OBJECT_DIR, id).delete();
         } else {
             // Fetch the current tracked blob tree
-            Commit current = (Commit) fetchHead();
-            BlobTree tracked = (BlobTree) fetch(current.getTree());
-            if (tracked != null && tracked.isContained(filename)) {
+            Commit current = fetchHead();
+            BlobTree tracked = fetchBlobTree(current.getTree());
+            if (tracked.isContained(filename)) {
                 // If the file is in the current commit, delete it from the working directory
                 stage.addDeletion(filename, tracked.getBlobID(filename));
                 restrictedDelete(join(CWD, filename));
@@ -219,87 +218,40 @@ public class Repository {
         Utils.writeObject(STAGE, stage);
     }
 
-    /** Print out logs from the Head Commit. */
+    /* Log & Status */
+
+    /** Print out logs from current HEAD to the starting commit of current branch. */
     public static void log() {
-        Commit head = (Commit) fetchHead();
+        Commit head = fetchHead();
         System.out.print(verboseLog(head));
+    }
+
+    /** Compose a very verbose log info of all commit info starting from
+     *  the HEAD commit to init commit.
+     *
+     *  @param head the starting commit
+     *  @return collected and ordered commit info
+     */
+    private static String verboseLog(Commit head) {
+        StringBuilder log = new StringBuilder();
+        while (head != null) {
+            log.append(head.log());
+            head = (Commit) fetch(head.getParent());
+        }
+        return log.toString();
     }
 
     /** Print out logs for all commits. */
     public static void globalLog() {
+        // not in good style
         CommitTree global = (CommitTree) new CommitTree().load(GLOBAL);
         TreeMap<String, String> mapping = global.getMapping();
         StringBuilder ids = new StringBuilder();
         for (Map.Entry<String, String> p : mapping.entrySet()) {
-            Commit c = (Commit) fetch(p.getKey());
+            Commit c = fetchCommit(p.getKey());
             ids.append(c.log());
         }
         System.out.print(ids);
-    }
-
-    /** Takes the version of the file as it exists in the head commit
-     *  and puts it in the working directory, overwriting the version
-     *  of the file that’s already there if there is one. The new
-     *  version of the file is not staged.
-     *
-     *  @param filename the file to check out
-     */
-    public static void checkout(String filename) {
-        Commit head = (Commit) fetchHead();
-        BlobTree tree = (BlobTree) fetch(head.getTree());
-        if (tree != null && tree.isContained(filename)) {
-            Blob b = (Blob) fetch(tree.getBlobID(filename));
-            assert b != null;
-            writeContents(join(CWD, filename), b.getContent());
-        } else {
-            exitWithPrint("File does not exist in that commit.");
-        }
-    }
-
-    /** Takes the version of the file as it exists in the commit with the
-     *  given id, and puts it in the working directory, overwriting the
-     *  version of the file that’s already there if there is one.
-     *  The new version of the file is not staged.
-     *
-     *  @param commitID the commit to check
-     *  @param filename the file to check out
-     */
-    public static void checkout(String commitID, String filename) {
-        // for short-uid cases
-        commitID = autoComplete(commitID);
-        if (commitID == null) {
-            exitWithPrint("No commit with that id exists.");
-        }
-        Commit checked = (Commit) fetch(commitID);
-        BlobTree tree = (BlobTree) fetch(checked.getTree());
-        if (tree != null && tree.isContained(filename)) {
-            Blob b = (Blob) fetch(tree.getBlobID(filename));
-            assert b != null;
-            writeContents(join(CWD, filename), b.getContent());
-        } else {
-            exitWithPrint("File does not exist in that commit.");
-        }
-    }
-
-    /** Takes all files in the commit at the head of the given branch,
-     *  and puts them in the working directory, overwriting the versions
-     *  of the files that are already there if they exist.
-     *
-     *  @param branchName the branch to be the head
-     */
-    public static void checkoutBranch(String branchName) {
-        if (isHead(branchName)) {
-            exitWithPrint("No need to checkout the current branch.");
-        }
-        File branchPath = join(REFS_DIR, branchName);
-        if (!branchPath.exists()) {
-            exitWithPrint("No such branch exists.");
-        }
-        // check out the branch head commit
-        String head = readObject(branchPath, CommitTree.class).getLast();
-        checkoutCommit(head, false);
-        // Move HEAD to the new branch
-        writeContents(HEAD, "refs/%s".formatted(branchName));
     }
 
     /** Prints out the ids of all commits that have the given
@@ -317,68 +269,9 @@ public class Repository {
         }
     }
 
-    /** Creates a new branch with the given name, and points it at the
-     * current head commit.
-     *
-     * @param branchName name of the new branch
-     */
-    public static void branch(String branchName) {
-        File branchPath = join(REFS_DIR, branchName);
-        if (branchPath.exists()) {
-            // If a branch with the given name already exists, exits
-            exitWithPrint("A branch with that name already exists.");
-        } else {
-            // Create a new commit tree starts at the current commit
-            Commit head = (Commit) fetchHead();
-            CommitTree branch = new CommitTree(head);
-            // Save the new branch
-            writeObject(branchPath, branch);
-        }
-    }
-
-    /** Check if this branch is identical to current branch. */
-    private static boolean isHead(String branchName) {
-        String current = readContentsAsString(HEAD);
-        return current.equals("refs/" + branchName);
-    }
-
-    /** Deletes the branch with the given name. */
-    public static void removeBranch(String branchName) {
-        // Check if it is current working branch
-        if (isHead(branchName)) {
-            exitWithPrint("Cannot remove the current branch.");
-        }
-        // Check if a branch named branchName exists
-        File branchPath = join(REFS_DIR, branchName);
-        if (!branchPath.exists()) {
-            exitWithPrint("A branch with that name does not exist.");
-        }
-        // Delete this branch only, don't do anything else
-        branchPath.delete();
-    }
-
     /** Displays what branches currently exist, and marks the current
      * branch with a `*`. Also displays what files have been staged for
      * addition or removal.
-     * Format:
-     * === Branches ===
-     * *master
-     * other-branch
-     *
-     * === Staged Files ===
-     * wug.txt
-     * wug2.txt
-     *
-     * === Removed Files ===
-     * goodbye.txt
-     *
-     * === Modifications Not Staged For Commit ===
-     * junk.txt (deleted)
-     * wug3.txt (modified)
-     *
-     * === Untracked Files ===
-     * random.stuff
-     *
      */
     public static void status() {
         String coverUp = "=== Branches ===\n";
@@ -408,7 +301,7 @@ public class Repository {
         coverUp += "\n=== Modifications Not Staged For Commit ===\n";
         // All working files in current working directory
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        BlobTree workingTree = fetchTrackedTree();
+        BlobTree workingTree = fetchTrackedTree(fetchHead());
         // Iterating all files in the blob tree
         for (Map.Entry<String, String> p: workingTree.getMapping().entrySet()) {
             // If a file disappears and not staged
@@ -435,6 +328,144 @@ public class Repository {
             }
         }
         System.out.println(coverUp);
+    }
+
+    /* Checkout */
+
+    /** Takes the version of the file as it exists in the head commit
+     *  and puts it in the working directory, overwriting the version
+     *  of the file that’s already there if there is one. The new
+     *  version of the file is not staged.
+     *
+     *  @param filename name of target file
+     */
+    public static void checkout(String filename) {
+        Commit head = fetchHead();
+        BlobTree tree = fetchBlobTree(head.getTree());
+        if (tree.isContained(filename)) {
+            Blob b = fetchBlob(tree.getBlobID(filename));
+            // save this blob object
+            writeContents(join(CWD, filename), b.getContent());
+        } else {
+            exitWithPrint("File does not exist in that commit.");
+        }
+    }
+
+    /** Takes the version of the file as it exists in the commit with the
+     *  given id, and puts it in the working directory, overwriting the
+     *  version of the file that’s already there if there is one.
+     *  The new version of the file is not staged.
+     *
+     *  @param commitID uid or short uid of a commit
+     *  @param filename name of a file in this commit
+     */
+    public static void checkout(String commitID, String filename) {
+        Commit checked = fetchCommit(commitID);
+        BlobTree tree = fetchBlobTree(checked.getTree());
+        if (tree.isContained(filename)) {
+            Blob b = (Blob) fetch(tree.getBlobID(filename));
+            // write the fetched blob into CWD
+            writeContents(join(CWD, filename), b.getContent());
+        } else {
+            exitWithPrint("File does not exist in that commit.");
+        }
+    }
+
+    /** Takes all files in the commit at the head of the given branch,
+     *  and puts them in the working directory, overwriting the versions
+     *  of the files that are already there if they exist.
+     *
+     *  @param branchName the branch to be the head
+     */
+    public static void checkoutBranch(String branchName) {
+        // checkout current branch
+        if (isHead(branchName)) {
+            exitWithPrint("No need to checkout the current branch.");
+        }
+        File branchPath = join(REFS_DIR, branchName);
+        if (!branchPath.exists()) {
+            exitWithPrint("No such branch exists.");
+        }
+        // check out the branch head commit
+        String head = readObject(branchPath, CommitTree.class).getLast();
+        checkoutCommit(head, false);
+        // Move HEAD to the new branch
+        writeContents(HEAD, "refs/%s".formatted(branchName));
+    }
+
+    /** Check out a commit.
+     *
+     * @param commitId uid of a commit
+     * @param changeHead need to reset or not
+     */
+    private static void checkoutCommit(String commitId, boolean changeHead) {
+        Commit c = fetchCommit(commitId);
+        // check if any file in the working directory is untracked
+        checkUntracked();
+        // All working files in current working directory
+        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
+        // Any files that are tracked in the current branch but are not
+        // present in the checked-out branch are deleted.
+        for (String file: workingFileList) {
+            new File(file).delete();
+        }
+        // Write all files in the target commit into CWD
+        BlobTree tree = fetchBlobTree(c.getTree());
+        for (Map.Entry<String, String> p: tree.getMapping().entrySet()) {
+            String filename = p.getKey();
+            String address = p.getValue();
+            // write if file is still tracked in this commit
+            if (address != null && !address.equals("deleted")) {
+                writeContents(join(CWD, filename), fetchBlob(address).getBytes());
+            }
+
+        }
+        // Clear the staging area
+        Stage stage = readObject(STAGE, Stage.class);
+        stage.empty();
+        writeObject(STAGE, stage);
+        // Need to change the current branch head to the checked commit
+        if (changeHead) {
+            CommitTree branch = fetchCurrentBranch();
+            branch.setLast(c);
+            writeObject(join(GITLET_DIR, readContentsAsString(HEAD)), branch);
+        }
+    }
+
+    /* Branch */
+
+    /** Creates a new branch with the given name, and points it at the
+     *  current head commit.
+     *
+     * @param branchName name of the new branch
+     */
+    public static void branch(String branchName) {
+        File branchPath = join(REFS_DIR, branchName);
+        if (branchPath.exists()) {
+            // If a branch with the given name already exists, exits
+            exitWithPrint("A branch with that name already exists.");
+        } else {
+            // Create a new commit tree starts at the current commit
+            Commit head = fetchHead();
+            CommitTree branch = new CommitTree(head);
+            // Save the new branch
+            writeObject(branchPath, branch);
+        }
+    }
+
+    /** Deletes the branch with the given name. */
+    public static void removeBranch(String branchName) {
+        // Check if it is current working branch
+        if (isHead(branchName)) {
+            exitWithPrint("Cannot remove the current branch.");
+        }
+        // Check if a branch named branchName exists
+        File branchPath = join(REFS_DIR, branchName);
+        if (!branchPath.exists()) {
+            exitWithPrint("A branch with that name does not exist.");
+        }
+        // Delete this branch only, don't do anything else
+        branchPath.delete();
     }
 
     /** Checks out all the files tracked by the given commit. Removes tracked
@@ -494,8 +525,18 @@ public class Repository {
         Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName),
                 CommitTree.class).getLast());
         // Fetch current head commit
-        Commit cHead = (Commit) fetchHead();
-        Commit ancestor = findLatestAncestor(cHead, mHead, branchName);
+        Commit cHead = fetchHead();
+        Commit ancestor = findLatestAncestor(cHead, mHead);
+        // If the split point is the current branch
+        if (ancestor.getID().equals(cHead.getID())) {
+            // checkout the given branch
+            checkoutCommit(mHead.getID(), true);
+            exitWithPrint("Current branch fast-forwarded.");
+        }
+        // If the split point is the same commit as the given branch
+        if (ancestor.getID().equals(mHead.getID())) {
+            exitWithPrint("Given branch is an ancestor of the current branch.");
+        }
         BlobTree divergedTree = fetchBlobTree(mHead.getTree());
         //System.out.println(divergedTree.log());
         BlobTree currentTree = fetchBlobTree(cHead.getTree());
@@ -539,7 +580,13 @@ public class Repository {
         return isConflicted;
     }
 
-    private static Commit findLatestAncestor(Commit cHead, Commit mHead, String branchName) {
+    /** Find the lowest common ancestor of two commits.
+     *
+     * @param cHead head commit of current working branch
+     * @param mHead head commit of another branch
+     * @return their lowest common ancestor
+     */
+    private static Commit findLatestAncestor(Commit cHead, Commit mHead) {
         // Find the latest common ancestor
         Commit mBack = mHead;
         Commit cBack = cHead;
@@ -550,16 +597,6 @@ public class Repository {
             } else {
                 mBack = (Commit) fetch(mBack.getParent());
             }
-        }
-        // If the split point is the current branch
-        if (cBack.getID().equals(cHead.getID())) {
-            // checkout the given branch
-            checkoutCommit(mHead.getID(), true);
-            exitWithPrint("Current branch fast-forwarded.");
-        }
-        // If the split point is the same commit as the given branch
-        if (mBack.getID().equals(mHead.getID())) {
-            exitWithPrint("Given branch is an ancestor of the current branch.");
         }
         return cBack;
     }
@@ -582,11 +619,105 @@ public class Repository {
         add(name);
     }
 
+    /* Remote */
+
+    /** Saves the given login information under the given remote name.
+     *
+     * @param origin remote name
+     * @param directory name of remote directory
+     */
+    public static void addRemote(String origin, String directory) {
+        // replace "/" with "\" on Windows system
+        directory = directory.replaceAll("/", Matcher.quoteReplacement(File.separator));
+        // store the name of remote directory in file named with given string
+        File remote = join(REMOTE_DIR, origin);
+        if (remote.exists()) {
+            exitWithPrint("A remote with that name already exists.");
+        }
+        writeObject(remote, directory);
+    }
+
+    /** Remove information associated with the given remote name.
+     *
+     * @param target remote to delete
+     */
+    public static void rmRemote(String target) {
+        // disconnect with the target remote
+        File remote = join(REMOTE_DIR, target);
+        if (!remote.exists()) {
+            exitWithPrint("A remote with that name does not exist.");
+        }
+        restrictedDelete(remote);
+    }
+
+
+//    /** Append the current branch’s commits to the end of the given branch at
+//     *  the given remote.
+//     *
+//     * @param origin target remote to push
+//     * @param main target branch in the remote
+//     */
+//    public static void push(String origin, String main) {
+//        setUpRemoteEnv(origin);
+//        MAIN = join(ORIGIN, "refs", main);
+//        if (!MAIN.exists()) {
+//            exitWithPrint("Remote directory not found.");
+//        }
+//        CommitTree remoteBranch = readObject(MAIN, CommitTree.class);
+//        CommitTree currentBranch = readObject(join(REFS_DIR,
+//                                   readContentsAsString(HEAD).split("/")[1]),
+//                                   CommitTree.class);
+//        Commit remoteHead = (Commit) fetch(remoteBranch.getLast(), WAREHOUSE);
+//        Commit currentHead = (Commit) fetch(currentBranch.getLast(), OBJECT_DIR);
+//        Commit ancestor = findLatestAncestor(currentHead, remoteHead, OBJECT_DIR, WAREHOUSE);
+//        // head commit in remote must be a history commit in current working branch
+//        if (!ancestor.getID().equals(remoteHead.getID())) {
+//            exitWithPrint("Please pull down remote changes before pushing.");
+//        }
+//        Commit c = currentHead;
+//        // copy all objects from current head commit to remote head commit into $REMOTE$/objects
+//        while (c.getID().equals(ancestor.getID())) {
+//            remoteBranch.add(c);
+//            // store commit
+//            c.store(WAREHOUSE);
+//            // store blob tree
+//            BlobTree tree = (BlobTree) fetch(c.getTree(), GITLET_DIR);
+//            tree.store(WAREHOUSE);
+//            // store blobs in tree
+//            for (Map.Entry<String, String> blob : tree.getMapping().entrySet()) {
+//                fetch(blob.getValue(), GITLET_DIR).store(WAREHOUSE);
+//            }
+//            // fetch next commit
+//            c = (Commit) fetch(c.getParent(), GITLET_DIR);
+//        }
+//        remoteBranch.setLast(currentHead);
+//        // finally, update the branch
+//        remoteBranch.store(MAIN);
+//        // one more step, reset remote into same status as current head commit
+//        reset(currentHead.getID(), );
+//    }
+//
+//    private static void setUpRemoteEnv(String origin) {
+//        String remoteWorkingDir = readContentsAsString(join(REMOTE_DIR, origin);
+//        ORIGIN = new File(remoteWorkingDir);
+//
+//        if (!ORIGIN.exists()) {
+//            exitWithPrint("Remote directory not found.");
+//        }
+//        WAREHOUSE = join(ORIGIN, "objects");
+//    }
+
 
     /* ***************************************************************
      *******************    Internal Methods    **********************
      *************************************************************** */
 
+
+    /* Persistence */
+
+    public static Repository activate(File repoDir) {
+        return readObject(repoDir, Repository.class);
+    }
 
     /** Set up persistence for a gitlet repository. */
     private static void buildRepo() {
@@ -598,6 +729,8 @@ public class Repository {
         }
         // Create refs directory
         REFS_DIR.mkdir();
+        // Create remote folder
+        REMOTE_DIR.mkdir();
         // Create object directory
         OBJECT_DIR.mkdir();
         // Create HEAD
@@ -608,10 +741,14 @@ public class Repository {
         writeObject(STAGE, new Stage());
         // Create global commit collecting zone
         writeObject(GLOBAL, new CommitTree());
+        // Store this repository
+        writeObject(REPO, new Repository());
     }
 
+
     /** Check if the filename points at an existed file in CWD,
-     *  return null if not existed
+     *  return null if not existed.
+     *  NOTES: Unnecessary
      *
      * @param filename the file to check
      * @param msg error message
@@ -628,11 +765,26 @@ public class Repository {
         return null;
     }
 
-    /** Complete a short-uid to a full-length one. */
+    /** Check if this branch is identical to current branch.
+     *
+     * @return if the given branch is the current branch or not
+     */
+    private static boolean isHead(String branchName) {
+        String current = readContentsAsString(HEAD);
+        return current.equals("refs/" + branchName);
+    }
+
+    /* Fetch */
+
+    /** Complete a short-uid to a full-length one.
+     *
+     * @param shortId short-uid for an object
+     * @return full-length uid or null
+     */
     private static String autoComplete(String shortId) {
         List<String> fileList = Utils.plainFilenamesIn(OBJECT_DIR);
         if (fileList == null) {
-            fileList = new LinkedList<>();
+            return null;
         }
         int cnt = 0;
         if (fileList.contains(shortId)) {
@@ -650,38 +802,19 @@ public class Repository {
             // cannot narrow to one specific commit
             return null;
         }
-        return shortId;
-    }
-
-    /** Compose a very verbose log info of all commit info starting from
-     *  the HEAD commit to init commit.
-     *
-     *  @return collected and ordered commit info
-     */
-    private static String verboseLog(Commit head) {
-        StringBuilder log = new StringBuilder();
-        while (head != null) {
-            log.append(head.log());
-            head = (Commit) fetch(head.getParent());
+            return shortId;
         }
-        return log.toString();
-    }
-
-    /** Fetch the commit at HEAD. */
-    private static Dumpable fetchHead() {
-        File branch = join(GITLET_DIR, readContentsAsString(HEAD));
-        File parentDir = join(OBJECT_DIR, readObject(branch, CommitTree.class).getLast());
-        return new Commit().load(parentDir);
-    }
 
     /** Fetch a dumpable object stored at OBJECT_DIR.
      *
      * @param filename sha-1 value of the object to fetch
      */
     private static Dumpable fetch(String filename) {
+        // illegal filename
         if (filename == null || filename.equals("") || filename.equals("deleted"))  {
             return null;
         }
+        // filename not exist
         File path = join(OBJECT_DIR, filename);
         if (!path.exists()) {
             return null;
@@ -689,72 +822,51 @@ public class Repository {
         return readObject(join(OBJECT_DIR, filename), Dumpable.class);
     }
 
-    /** Check out a commit. */
-    private static void checkoutCommit(String commitId, boolean changeHead) {
-        Commit c = fetchCommit(commitId);
-        // check if any file in the working directory is untracked
-        checkUntracked();
-        // All working files in current working directory
-        List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        // Any files that are tracked in the current branch but are not
-        // present in the checked-out branch are deleted.
-        for (String file: workingFileList) {
-            new File(file).delete();
-        }
-        // Write all files in the target commit into CWD
-        BlobTree tree = (BlobTree) fetch(c.getTree());
-        if (tree == null) {
-            tree = new BlobTree();
-        }
-        for (Map.Entry<String, String> p: tree.getMapping().entrySet()) {
-            String filename = p.getKey();
-            String address = p.getValue();
-            if (address != null && !address.equals("deleted")) {
-                writeContents(join(CWD, filename), ((Blob) fetch(address)).getBytes());
-            }
-
-        }
-        // Clear the staging area
-        Stage stage = readObject(STAGE, Stage.class);
-        stage.empty();
-        writeObject(STAGE, stage);
-        // Need to change the current branch head to the checked commit
-        if (changeHead) {
-            CommitTree branch = fetchCurrentBranch();
-            branch.setLast(c);
-            writeObject(join(GITLET_DIR, readContentsAsString(HEAD)), branch);
-        }
+    /** Fetch the commit at HEAD.
+     *
+     * @return the latest commit in current branch
+     */
+    private static Commit fetchHead() {
+        File branch = join(GITLET_DIR, readContentsAsString(HEAD));
+        File parentDir = join(OBJECT_DIR, readObject(branch, CommitTree.class).getLast());
+        return (Commit) new Commit().load(parentDir);
     }
 
+    /** Fetch the current branch.
+     *
+     * @return current branch
+     */
     private static CommitTree fetchCurrentBranch() {
         return (CommitTree) new CommitTree().load(join(GITLET_DIR, readContentsAsString(HEAD)));
     }
 
-    private static BlobTree fetchTrackedTree() {
-        // Fetch current commit
-        Commit head = (Commit) fetchHead();
-        // The blob tree of current commit
-        BlobTree workingTree = (BlobTree) fetch(head.getTree());
-        if (workingTree == null) {
-            workingTree = new BlobTree();
-        }
+    /** Fetch the tracked tree of the target commit and merge into the staging area.
+     *
+     * @param head head commit of current branch
+     * @return a blob tree contains all tracking files
+     */
+    private static BlobTree fetchTrackedTree(Commit head) {
+        // The blob tree of the target commit
+        BlobTree workingTree = fetchBlobTree(head.getTree());
         // Merge the stage and the working tree of current commit
         workingTree.merge(readObject(STAGE, Stage.class));
         return workingTree;
     }
 
-    /** Fetch a commit by its id, exists if no such commit. */
+    /** Fetch a commit by its id, exits if no such commit.
+     *
+     * @param commitId uid of target commit
+     */
     private static Commit fetchCommit(String commitId) {
         // for short-uid cases
-        commitId = autoComplete(commitId);
-        Commit c = (Commit) fetch(commitId);
+        Commit c = (Commit) fetch(autoComplete(commitId));
         if (c == null) {
             exitWithPrint("No commit with that id exists.");
         }
         return c;
     }
 
-    private static Blob fechBlob(String id) {
+    private static Blob fetchBlob(String id) {
         return (Blob) fetch(id);
     }
 
@@ -774,10 +886,12 @@ public class Repository {
         return tree;
     }
 
+    /* Others */
+
     /** Check if any working file is untracked. */
     private static void checkUntracked() {
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        BlobTree workingTree = fetchTrackedTree();
+        BlobTree workingTree = fetchTrackedTree(fetchHead());
         for (String file : workingFileList) {
             if (!workingTree.isContained(file)) {
                 exitWithPrint("There is an untracked file in the way; "
@@ -788,7 +902,7 @@ public class Repository {
 
     /** Check if .gitlet directory exist in current working directory */
     public static boolean checkEnv() {
-        return GITLET_DIR.exists();
+        return REPO.exists();
     }
 
     /**

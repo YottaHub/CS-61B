@@ -39,12 +39,12 @@ public class Commit implements Serializable, Dumpable {
     }
 
     /**
-     * New a commit object for merging
+     * New a commit object
      *
      * @param d    creation time
      * @param msg  user victimized massage
      * @param p    SHA-1 value of the parent commit
-     * @param r    Id of the relative commit
+     * @param r    Id of the relative commit or null
      * @param t    SHA-1 value of the tracked blob tree
      */
     public Commit(Date d, String msg, String p, String r, String t) {
@@ -149,7 +149,7 @@ public class Commit implements Serializable, Dumpable {
 
     /** Store this commit and generate its SHA-1 value. */
     public void store(File storePath) {
-        // all dumpable objects must store in "$REPO_DIR/.gitlet/objects/../..."
+        // all dumpable objects must store in "$REPO_DIR/objects/../..."
         Utils.writeObject(Utils.join(storePath, this.id), this);
     }
 
