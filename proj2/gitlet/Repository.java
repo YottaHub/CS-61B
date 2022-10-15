@@ -709,8 +709,8 @@ public class Repository implements Serializable {
             ORIGIN.saveBlobTree(t);
             for (Map.Entry<String, String> l : t.getMapping().entrySet()) {
                 String address = l.getValue();
-                if (address != "deleted" && address != "") {
-                    ORIGIN.save(ORIGIN.fetchBlob(address));
+                if (!address.equals("deleted")) {
+                    ORIGIN.save(fetchBlob(address));
                 }
             }
             c = fetchCommit(c.getParent());
@@ -749,7 +749,7 @@ public class Repository implements Serializable {
             saveBlobTree(t);
             for (Map.Entry<String, String> l : t.getMapping().entrySet()) {
                 String address = l.getValue();
-                if (address != "deleted") {
+                if (!address.equals("deleted")) {
                     save(ORIGIN.fetchBlob(address));
                 }
             }
@@ -762,7 +762,7 @@ public class Repository implements Serializable {
     }
 
     public void saveBlobTree(BlobTree tree) {
-       writeObject(join(OBJECT_DIR, tree.getID()), tree);
+        writeObject(join(OBJECT_DIR, tree.getID()), tree);
     }
 
     /** Fetches branch `[remote name]/[remote branch name]` as for the `fetch` command,
