@@ -95,7 +95,7 @@ public class Main {
             case "merge" -> {
                 // java gitlet.Main merge [branch name]
                 validateNumArgs(args, 2);
-                activate().merge(args[1], null);
+                activate().merge(args[1]);
             }
             case "add-remote" -> {
                 // java gitlet.Main add-remote [remote-name] [remote directory]/.gitlet
@@ -121,9 +121,6 @@ public class Main {
                 // java gitlet.Main pull [remote name] [remote branch name]
                 validateNumArgs(args, 3);
                 activate().pull(args[1], args[2]);
-            }
-            case "info" -> {
-                activate().info();
             }
             default -> exitWithPrint("No command with that name exists.");
         }
