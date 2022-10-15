@@ -407,9 +407,8 @@ public class Repository implements Serializable {
             if (address != null && !address.equals("deleted")) {
                 write(fetchBlob(address), filename);
             }
-
         }
-        // Clear the staging area
+        // clear the staging area
         Stage stage = readObject(STAGE, Stage.class);
         stage.empty();
         writeObject(STAGE, stage);
@@ -422,8 +421,7 @@ public class Repository implements Serializable {
     }
 
     /** Checks out all the files tracked by the given commit. Removes tracked
-     *  files that are not present in that commit. Also moves the current
-     *  branchâ€™s head to that commit node.
+     *  files that are not present in that commit.
      *
      * @param commitId the commit resetting to
      */
@@ -447,23 +445,22 @@ public class Repository implements Serializable {
             // Create a new commit tree starts at the current commit
             Commit head = fetchHead();
             CommitTree branch = new CommitTree(head);
-            // Save the new branch
             saveBranch(branch, branchName);
         }
     }
 
     /** Deletes the branch with the given name. */
     public void removeBranch(String branchName) {
-        // Check if it is current working branch
+        // check if current branch or not
         if (isHead(branchName)) {
             exitWithPrint("Cannot remove the current branch.");
         }
-        // Check if a branch named branchName exists
+        // check existence
         File branchPath = join(REFS_DIR, branchName);
         if (!branchPath.exists()) {
             exitWithPrint("A branch with that name does not exist.");
         }
-        // Delete this branch only, don't do anything else
+        // delete this commit tree
         branchPath.delete();
     }
 
