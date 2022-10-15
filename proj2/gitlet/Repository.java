@@ -274,7 +274,18 @@ public class Repository implements Serializable {
     public void status() {
         String coverUp = "=== Branches ===\n";
         String branchPart = "";
-        List<String> branchList = plainFilenamesIn(REFS_DIR);
+        List<String> branchList = new ArrayList<>(plainFilenamesIn(REFS_DIR));
+        List<String> remoteList = new ArrayList<>(
+                Objects.requireNonNull(plainFilenamesIn(REMOTE_DIR)));
+        for (String remote: remoteList) {
+            if (join(REFS_DIR, remote).exists()) {
+                List<String> remoteBranchList = new ArrayList<>(
+                        Objects.requireNonNull(plainFilenamesIn(join(REFS_DIR, remote))));
+                for (String branch : remoteBranchList) {
+                    branchList.add(join(remote, branch).toString());
+                }
+            }
+        }
         // Compose branch part by inspecting current branch
         for (String branch: branchList) {
             if (isHead(branch)) {
@@ -373,6 +384,7 @@ public class Repository implements Serializable {
      *  @param branchName the branch to be the head
      */
     public void checkoutBranch(String branchName) {
+        branchName = branchName.replaceAll("/", Matcher.quoteReplacement(File.separator));
         // checkout current branch
         if (isHead(branchName)) {
             exitWithPrint("No need to checkout the current branch.");
@@ -381,8 +393,9 @@ public class Repository implements Serializable {
         if (!branchPath.exists()) {
             exitWithPrint("No such branch exists.");
         }
+
         // check out the branch head commit
-        String head = readObject(branchPath, CommitTree.class).getLast();
+        String head = fetchCommitTree(branchName).getLast();
         checkoutCommit(head, false);
         // move HEAD to the new branch
         writeContents(HEAD, "refs/%s".formatted(branchName));
@@ -501,7 +514,7 @@ public class Repository implements Serializable {
         checkUntracked();
         boolean isConflicted = mergeHelper(branchName);
         // compose merge message
-        String currentBranchName = readContentsAsString(HEAD).split("/")[1];
+        String currentBranchName = getCurrentBranch();
         String msg = "Merged %s into %s.".formatted(branchName, currentBranchName);
         // a special commit after merging
         Commit mHead = (Commit) fetch(readObject(join(REFS_DIR, branchName),
@@ -510,6 +523,10 @@ public class Repository implements Serializable {
         if (isConflicted) {
             exitWithPrint("Encountered a merge conflict.");
         }
+    }
+
+    public String getCurrentBranch() {
+        return readContentsAsString(HEAD).split("/")[1];
     }
 
     private boolean mergeHelper(String branchName) {
@@ -558,7 +575,7 @@ public class Repository implements Serializable {
             } else if (!mAddress.equals(cAddress) && !mAddress.equals(aAddress)
                     && ((cAddress == null && cAddress != aAddress)
                     || cAddress != null && !cAddress.equals(aAddress))) {
-                if (mAddress.equals("deleted")) {
+                if (mAddress.equals("deleted") && aAddress == null) {
                     // a special case that this file is somehow added and deleted
                     join(CWD, name).delete();
                 } else {
@@ -638,13 +655,13 @@ public class Repository implements Serializable {
         if (remote.exists()) {
             exitWithPrint("A remote with that name already exists.");
         }
-        // write the location of remote directory in refs/remote/origin/origin
+        // write the location of remote directory in refs/remote/origin
         writeContents(remote, directory);
     }
 
     /** Remove information associated with the given remote name.
      *
-     * @param target remote to delete
+     * @param target name of remote to delete
      */
     public void rmRemote(String target) {
         // disconnect with the target remote
@@ -662,7 +679,7 @@ public class Repository implements Serializable {
      * @param main target branch in the remote
      */
     public void push(String origin, String main) {
-        // set up remote
+        // connect remote repository
         setUpRemoteEnv(origin);
         CommitTree currentBranch = this.fetchCurrentBranch();
         Commit currentHead = this.fetchCommit(currentBranch.getLast());
@@ -684,10 +701,24 @@ public class Repository implements Serializable {
                 exitWithPrint("Please pull down remote changes before pushing.");
             }
         }
-        // deliver objects from this repository to remote repository
-        deliver(currentHead, ancestor, remoteBranch, main);
+        CommitTree p = new CommitTree();
+        Commit c = currentHead;
+        while (!c.getID().equals(ancestor.getID())) {
+            ORIGIN.save(c);
+            BlobTree t = fetchBlobTree(c.getTree());
+            ORIGIN.saveBlobTree(t);
+            for (Map.Entry<String, String> l : t.getMapping().entrySet()) {
+                String address = l.getValue();
+                if (address != "deleted" && address != "") {
+                    ORIGIN.save(ORIGIN.fetchBlob(address));
+                }
+            }
+            c = fetchCommit(c.getParent());
+            p.add(c);
+        }
+        ORIGIN.saveBranch(p, main);
         // one more step, reset remote into same status as current head commit
-        ORIGIN.checkoutCommit(currentHead.getID(), true);
+        ORIGIN.reset(currentHead.getID());
     }
 
     /** Brings down commits from the remote Gitlet repository into the local Gitlet repository.
@@ -696,50 +727,38 @@ public class Repository implements Serializable {
      * @param main target branch in the remote
      */
     public String fetchRemote(String origin, String main) {
+        // connect remote repository
         setUpRemoteEnv(origin);
+        // fetch target branch in remote
         CommitTree remoteBranch = ORIGIN.fetchCommitTree(main);
         if (remoteBranch == null) {
             exitWithPrint("That remote does not have that branch.");
         }
-        Commit remoteHead = ORIGIN.fetchCommit(remoteBranch.getLast());
-        CommitTree currentBranch = this.fetchCurrentBranch();
-        Commit currentHead = this.fetchCommit(currentBranch.getLast());
-        Commit ancestor = findLatestAncestor(currentHead, remoteHead, this, ORIGIN);
-        // deliver objects from remote repository to this repository
-        ORIGIN.addRemote("temp", this.GITLET_DIR.toString());
-        ORIGIN.setUpRemoteEnv("temp");
-        ORIGIN.deliver(remoteHead, ancestor, currentBranch, origin + main);
-        ORIGIN.rmRemote("temp");
-        return origin + main;
-    }
-
-    /** Deliver all dumpable objects from {@Commit start} to {@Commit end} in this repository
-     *  to a branch called {@CommitTree main} in remote repository.
-     *
-     * @param start the starting commit
-     * @param end the ending commit
-     * @param main branch in remote repository
-     * @param branchName name of this branch
-     */
-    public void deliver(Commit start, Commit end, CommitTree main, String branchName) {
-        Commit current = start;
-        while (!current.getID().equals(end.getID())) {
-            BlobTree tree = fetchBlobTree(current.getTree());
-            // a safer way to re-save a tree object
-            ORIGIN.saveBlobTree(tree);
-            // deliver blobs in tree
-            for (Map.Entry<String, String> leaf : tree.getMapping().entrySet()) {
-                String address = leaf.getValue();
+        // download objects from remote repository to this repository
+        Commit s = ORIGIN.fetchCommit(remoteBranch.getLast());
+        Commit e = s;
+        while (!e.getParent().equals("")) {
+            e = ORIGIN.fetchCommit(e.getParent());
+        }
+        join(REFS_DIR, origin).mkdir();
+        CommitTree p = new CommitTree();
+        Commit c = s;
+        while (!c.getID().equals(e.getID())) {
+            save(c);
+            BlobTree t = ORIGIN.fetchBlobTree(c.getTree());
+            saveBlobTree(t);
+            for (Map.Entry<String, String> l : t.getMapping().entrySet()) {
+                String address = l.getValue();
                 if (address != "deleted") {
-                    ORIGIN.save(this.fetchBlob(address));
+                    save(ORIGIN.fetchBlob(address));
                 }
             }
-            ORIGIN.update(current);
-            main.add(current);
-            // fetch next commit
-            current = fetchCommit(start.getParent());
+            c = ORIGIN.fetchCommit(c.getParent());
+            p.add(c);
         }
-        ORIGIN.saveBranch(main, branchName);
+        p.setLast(s);
+        saveBranch(p, origin + "/" + main);
+        return origin + "/" + main;
     }
 
     public void saveBlobTree(BlobTree tree) {
