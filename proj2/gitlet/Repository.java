@@ -12,88 +12,99 @@ import static gitlet.Utils.*;
  *  @author Y. Y. Y
  */
 public class Repository implements Serializable {
-    /*  Visualization of a gitlet repository
-        .gitlet (top folder)
-        |
-        +- REPO (Repository)
-        |
-        +- objects (directory)
-        |  |
-        |  + 8b0d5 (commit, message = "init commit", tree = "")
-        |  |
-        |  + bc04f (commit, message = "add v1.txt", tree = "5840f")
-        |  |
-        |  + 9ee02 (blob, content = "gitlet version 1")
-        |  |
-        |  + 5840f (BlobTree, set = {"v1.txt: 9ee02"})
-        |
-        +- HEAD (file, contents = "refs/master")
-        |
-        +- refs (directory)
-        |  |
-        |  + master (CommitTree, set = {8b0d5: "init commit"; bc04f: "add v1.txt"})
-        |  |
-        |  + remotes (folder)
-        |       |
-        |       + origin(file, contents = location of remote directory)
-        |
-        +- index (Stage)
-        |
-        +- global (CommitTree)
-     */
 
     /* DIRECTORIES */
 
     /** The current working directory. */
-    public static final File CWD = new File(System.getProperty("user.dir"));
+    private final File CWD;
     /** The .gitlet directory. */
-    public static final File GITLET_DIR = join(CWD, ".gitlet");
+    private final File GITLET_DIR;
     /** The refs directory. */
-    public static final File REFS_DIR = join(GITLET_DIR, "refs");
+    private final File REFS_DIR;
     /** The OBJECT directory where stores all objects' content */
-    public static final File OBJECT_DIR = join(GITLET_DIR, "objects");
+    private final File OBJECT_DIR;
 
     /* FILES */
 
     /** The repository object. */
-    private static final File REPO = join(GITLET_DIR, "REPO");
+    private final File REPO;
     /** The master branch. */
-    private static final File MASTER = join(REFS_DIR, "master");
+    private final File MASTER;
     /** Collect global commits. */
-    private static final File GLOBAL = join(GITLET_DIR, "global");
+    private final File GLOBAL;
     /** The file stores the directory of current branch */
-    private static final File HEAD = join(GITLET_DIR, "HEAD");
+    private final File HEAD;
     /** The staging area. */
-    private static final File STAGE = join(GITLET_DIR, "index");
+    private final File STAGE;
 
     /* REMOTES */
     /** The remote directory. */
-    private static final File REMOTE_DIR = join(REFS_DIR, "remotes");
+    private final File REMOTE_DIR;
     /** The remote Repository. */
-    private static Repository ORIGIN;
+    private Repository ORIGIN;
 
+
+    /*  Visualization of a gitlet repository
+    .gitlet (top folder)
+    |
+    +- REPO (Repository)
+    |
+    +- objects (folder)
+    |  |
+    |  + 8b0d5 (commit, message = "init commit", tree = "")
+    |  |
+    |  + bc04f (commit, message = "add v1.txt", tree = "5840f")
+    |  |
+    |  + 9ee02 (blob, content = "gitlet version 1")
+    |  |
+    |  + 5840f (BlobTree, set = {"v1.txt: 9ee02"})
+    |
+    +- HEAD (file, contents = "refs/master")
+    |
+    +- refs (folder)
+    |  |
+    |  + master (CommitTree, map = {8b0d5: "init commit"; bc04f: "add v1.txt"})
+    |  |
+    |  + remotes (folder)
+    |       |
+    |       + origin(file, contents = location of remote directory)
+    |
+    +- index (Stage)
+    |
+    +- global (CommitTree, map = {8b0d5: "init commit"; bc04f: "add v1.txt"})
+ */
+    private Repository() {
+        CWD = new File(System.getProperty("user.dir"));
+        GITLET_DIR = join(CWD, ".gitlet");
+        REFS_DIR = join(GITLET_DIR, "refs");
+        OBJECT_DIR = join(GITLET_DIR, "objects");
+        REPO = join(GITLET_DIR, "REPO");
+        MASTER = join(REFS_DIR, "master");
+        GLOBAL = join(GITLET_DIR, "global");
+        HEAD = join(GITLET_DIR, "HEAD");
+        STAGE = join(GITLET_DIR, "index");
+        REMOTE_DIR = join(REFS_DIR, "remotes");
+    }
 
 
     /* ***************************************************************
-       ********************    Main Methods    ***********************
-       *************************************************************** */
+     ********************    Main Methods    ***********************
+     *************************************************************** */
 
     /* Basic Functions */
 
-    /** The first step of creating a local gitlet working directory.
-     *  Initialize a gitlet repository with fixed massage "init
+    /** Initialize a gitlet repository with fixed massage "init
      *  commit" and a default time stamp.
      */
     public static void init() {
-        // Set up persistence for a repository
+        // set up persistence for a repository
         Repository repository = new Repository();
         repository.buildRepo();
-        // New the first commit
+        // new the first commit, same in all gitlet repositories
         Commit c = new Commit(new Date(0), "initial commit", "", "");
-        // Headed to master branch by default
-        Utils.writeContents(HEAD, "refs/master");
-        // Branch is a CommitTree object that stores a commit history
-        // Stores the latest commit in the master branch by default
+        // create and head to master branch by default
+        Utils.writeContents(repository.HEAD, "refs/master");
+        // make a commit
         repository.update(c);
     }
 
@@ -108,14 +119,10 @@ public class Repository implements Serializable {
         CommitTree current = fetchCurrentBranch();
         current.add(c);
         saveBranch(current, readContentsAsString(HEAD).split("/")[1]);
-        // Rich the global commit zone
+        // enrich the global commit zone
         CommitTree global = readObject(GLOBAL, CommitTree.class);
         global.add(c);
         writeObject(GLOBAL, global);
-    }
-
-    public void save(Dumpable obj) {
-        obj.store(OBJECT_DIR);
     }
 
     /** Adds an input file to the staging area, Staging an already-staged
@@ -125,65 +132,52 @@ public class Repository implements Serializable {
      *  @param filename the file adds to the staging area
      */
     public void add(String filename) {
-        // Convert input file to blob object
+        // convert input file to blob object and store
         Blob b = new Blob(checkFile(filename, "File does not exist."));
-        // Store the blob
         save(b);
         Stage stage = readObject(STAGE, Stage.class);
-        // Put the blob into the stage
+        // put the blob into the stage
         BlobTree workingTree = fetchTrackedTree(fetchHead());
         if (workingTree.isContained(filename)
                 && workingTree.getBlobID(filename).equals(b.getID())
                 && !stage.isDeleted(filename)) {
-            // Adding a tracked and identical file has no effect
+            // add a tracked and identical file has no effect
             return;
         } else {
             stage.add(b);
         }
-        // Save staging area into index
+        // save the staging area
         writeObject(STAGE, stage);
     }
 
     /** Saves a snapshot of tracked files in the current commit and staging area.
-     *  By default, each commit’s snapshot of files will be exactly the same as
-     *  its parent commit’s snapshot of files; it will keep versions of files
-     *  exactly as they are, and not update them. A commit will only update the
-     *  contents of files it is tracking that have been staged for addition at
-     *  the time of commit, in which case the commit will now include the version
-     *  of the file that was staged instead of the version it got from its parent.
      *
      * @param msg commit message
      * @param relative null or name of another branch
+     * @return this commit
      */
     public Commit commit(String msg, String relative) {
-        // Every commit must have a non-blank message
+        // check if the commit message is blank
         if (msg.equals("")) {
             exitWithPrint("Please enter a commit message.");
         }
-        // Fetch the parent commit
+        // fetch head commit
         Commit parent = fetchHead();
-        // If no files have been staged, abort
+        // check and combine changes in repository
         Stage stage = readObject(STAGE, Stage.class);
         if (relative == null && !stage.isChanged()) {
             exitWithPrint("No changes added to the commit.");
         }
-        // Fetch the blob tree of the parent commit if not empty
-        BlobTree tracked = new BlobTree();
-        if (parent.getTree() != null && !parent.getTree().equals("")) {
-            tracked = (BlobTree) fetchBlobTree(parent.getTree());
-        }
-        // Union the staging area and tracked files from parent commit
+        BlobTree tracked = fetchBlobTree(parent.getTree());
         tracked.merge(stage);
-        // Union the tracking files of two commits
+        // union the tracking files of two commits
         if (relative != null) {
-            Commit r = (Commit) fetch(relative);
-            tracked.merge((BlobTree) fetch(r.getTree()));
+            tracked.merge(fetchBlobTree(fetchCommit(relative).getTree()));
         }
-        // Store the merged blob tree as a completed gitlet object with an ID
+        // sometimes causes bugs because uid of a blob tree should be generated only once
         save(tracked);
-        // Make a commit
+        // make a commit
         Commit c = new Commit(new Date(), msg, parent.getID(), relative, tracked.getID());
-        // Update current branch and global branch and store c
         update(c);
         // The staging area is cleared after a commit
         stage.empty();
@@ -191,34 +185,28 @@ public class Repository implements Serializable {
         return c;
     }
 
-    /** Unstage the file if it is currently staged for addition. If the file
-     *  is tracked in the current commit, stage it for removal and remove the
-     *  file from the working directory if the user has not already done so
-     *  (do *not* remove it unless it is tracked in the current commit).
+    /** Unstage the file if it is currently staged for addition.
      *
      * @param filename file to remove
      */
     public void remove(String filename) {
-        // Error message of this method
-        String msg = "No reason to remove the file.";
         // Check if the file is staged
         Stage stage = readObject(STAGE, Stage.class);
         if (stage.isContained(filename)) {
-            // If this file is found in staging area, unstage it
+            // if this file is added, unstage and delete it
             String id = stage.unstage(filename);
-            // Delete the unstaged file
             join(OBJECT_DIR, id).delete();
         } else {
-            // Fetch the current tracked blob tree
+            // fetch current tracked blob tree
             Commit current = fetchHead();
             BlobTree tracked = fetchBlobTree(current.getTree());
             if (tracked.isContained(filename)) {
-                // If the file is in the current commit, delete it from the working directory
+                // if the file is in the current commit, delete it from the working directory
                 stage.addDeletion(filename, tracked.getBlobID(filename));
                 restrictedDelete(join(CWD, filename));
             } else {
                 // remove an untracked file
-                exitWithPrint(msg);
+                exitWithPrint("No reason to remove the file.");
             }
         }
         // save the staging area
@@ -250,7 +238,7 @@ public class Repository implements Serializable {
 
     /** Print out logs for all commits. */
     public void globalLog() {
-        // not in good style
+        // not write in a good style
         CommitTree global = (CommitTree) new CommitTree().load(GLOBAL);
         TreeMap<String, String> mapping = global.getMapping();
         StringBuilder ids = new StringBuilder();
@@ -341,8 +329,7 @@ public class Repository implements Serializable {
 
     /** Takes the version of the file as it exists in the head commit
      *  and puts it in the working directory, overwriting the version
-     *  of the file that’s already there if there is one. The new
-     *  version of the file is not staged.
+     *  of the file that’s already there if there is one.
      *
      *  @param filename name of target file
      */
@@ -350,18 +337,16 @@ public class Repository implements Serializable {
         Commit head = fetchHead();
         BlobTree tree = fetchBlobTree(head.getTree());
         if (tree.isContained(filename)) {
+            // if a file is tracked, rewrite it to CWD
             Blob b = fetchBlob(tree.getBlobID(filename));
-            // save this blob object
-            writeContents(join(CWD, filename), b.getContent());
+            write(b, filename);
         } else {
             exitWithPrint("File does not exist in that commit.");
         }
     }
 
     /** Takes the version of the file as it exists in the commit with the
-     *  given id, and puts it in the working directory, overwriting the
-     *  version of the file that’s already there if there is one.
-     *  The new version of the file is not staged.
+     *  given id, and puts it in the working directory.
      *
      *  @param commitID uid or short uid of a commit
      *  @param filename name of a file in this commit
@@ -395,8 +380,8 @@ public class Repository implements Serializable {
         }
         // check out the branch head commit
         String head = readObject(branchPath, CommitTree.class).getLast();
-        checkoutCommit(head, false, false);
-        // Move HEAD to the new branch
+        checkoutCommit(head, false);
+        // move HEAD to the new branch
         writeContents(HEAD, "refs/%s".formatted(branchName));
     }
 
@@ -405,27 +390,22 @@ public class Repository implements Serializable {
      * @param commitId uid of a commit
      * @param changeHead need to reset or not
      */
-    private void checkoutCommit(String commitId, boolean changeHead, boolean soft) {
+    private void checkoutCommit(String commitId, boolean changeHead) {
         Commit c = fetchCommit(commitId);
         // check if any file in the working directory is untracked
-        if (!soft) {
-            checkUntracked();
-        }
-        // All working files in current working directory
+        checkUntracked();
+        // clear files in CWD
         List<String> workingFileList = Utils.plainFilenamesIn(CWD);
-        // Any files that are tracked in the current branch but are not
-        // present in the checked-out branch are deleted.
         for (String file: workingFileList) {
             new File(file).delete();
         }
-        // Write all files in the target commit into CWD
+        // rewrite all tracked files from target commit into CWD
         BlobTree tree = fetchBlobTree(c.getTree());
         for (Map.Entry<String, String> p: tree.getMapping().entrySet()) {
             String filename = p.getKey();
             String address = p.getValue();
-            // write if file is still tracked in this commit
             if (address != null && !address.equals("deleted")) {
-                writeContents(join(CWD, filename), fetchBlob(address).getBytes());
+                write(fetchBlob(address), filename);
             }
 
         }
@@ -443,12 +423,12 @@ public class Repository implements Serializable {
 
     /** Checks out all the files tracked by the given commit. Removes tracked
      *  files that are not present in that commit. Also moves the current
-     *  branch’s head to that commit node.
+     *  branchâ€™s head to that commit node.
      *
      * @param commitId the commit resetting to
      */
-    public void reset(String commitId, boolean soft) {
-        checkoutCommit(commitId, true, soft);
+    public void reset(String commitId) {
+        checkoutCommit(commitId, true);
     }
 
     /* Branch */
@@ -485,10 +465,6 @@ public class Repository implements Serializable {
         }
         // Delete this branch only, don't do anything else
         branchPath.delete();
-    }
-
-    public void saveBranch(CommitTree branch, String name) {
-        writeObject(join(REFS_DIR, name), branch);
     }
 
     /* Merge */
@@ -549,7 +525,7 @@ public class Repository implements Serializable {
         // If the split point is the current branch
         if (ancestor.getID().equals(cHead.getID())) {
             // checkout the given branch
-            checkoutCommit(mHead.getID(), true, false);
+            checkoutCommit(mHead.getID(), true);
             exitWithPrint("Current branch fast-forwarded.");
         }
         // If the split point is the same commit as the given branch
@@ -606,7 +582,7 @@ public class Repository implements Serializable {
      * @return their lowest common ancestor
      */
     private static Commit findLatestAncestor(Commit cHead, Commit mHead,
-                                       Repository cRepository, Repository mRepository) {
+                                             Repository cRepository, Repository mRepository) {
         Commit mBack = mHead;
         Commit cBack = cHead;
         while (!cBack.getID().equals(mBack.getID())) {
@@ -675,7 +651,7 @@ public class Repository implements Serializable {
         System.out.println(CWD);
     }
 
-    /** Append the current branch’s commits to the end of the given branch at
+    /** Append the current branchâ€™s commits to the end of the given branch at
      *  the given remote.
      *
      * @param origin target remote to push
@@ -721,7 +697,7 @@ public class Repository implements Serializable {
         // finally, update the branch
         ORIGIN.saveBranch(remoteBranch, main);
         // one more step, reset remote into same status as current head commit
-        ORIGIN.reset(currentHead.getID(), true);
+        ORIGIN.reset(currentHead.getID());
     }
 
     private void setUpRemoteEnv(String origin) {
@@ -784,11 +760,25 @@ public class Repository implements Serializable {
 
     /* Persistence */
 
+    /* Activate the local repository. */
     public static Repository activate(File repoDir) {
         return readObject(join(repoDir, "REPO"), Repository.class);
     }
 
-    public Repository() { }
+    /* Store dumpable object in gitlet repository. */
+    public void save(Dumpable obj) {
+        obj.store(OBJECT_DIR);
+    }
+
+    /* Store a branch in .gitlet/refs. */
+    public void saveBranch(CommitTree branch, String name) {
+        writeObject(join(REFS_DIR, name), branch);
+    }
+
+    /* Write a blob back to CWD. */
+    public void write(Blob file, String name) {
+        writeContents(join(CWD, name), file.getBytes());
+    }
 
     /** Set up persistence for a gitlet repository. */
     private void buildRepo() {
@@ -873,8 +863,8 @@ public class Repository implements Serializable {
             // cannot narrow to one specific commit
             return null;
         }
-            return shortId;
-        }
+        return shortId;
+    }
 
     /** Fetch a dumpable object stored at OBJECT_DIR.
      *
@@ -975,11 +965,6 @@ public class Repository implements Serializable {
                         + "delete it, or add and commit it first.");
             }
         }
-    }
-
-    /** Check if .gitlet directory exist in current working directory */
-    public static boolean checkEnv() {
-        return REPO.exists();
     }
 
     /**

@@ -90,7 +90,7 @@ public class Main {
             case "reset" -> {
                 // java gitlet.Main reset [commit id]
                 validateNumArgs(args, 2);
-                activate().reset(args[1], false);
+                activate().reset(args[1]);
             }
             case "merge" -> {
                 // java gitlet.Main merge [branch name]
@@ -148,8 +148,9 @@ public class Main {
      * @return the working gitlet repository
      */
     public static Repository activate() {
-        if (!Repository.checkEnv())
+        if (!GITLET_DIR.exists()) {
             exitWithPrint("Not in an initialized Gitlet directory.");
+        }
         return Repository.activate(GITLET_DIR);
     }
 }
