@@ -2,11 +2,13 @@ package hw4.puzzle;
 
 import edu.princeton.cs.algs4.MinPQ;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-final class Solver {
+public class Solver {
     private final List<WorldState> path;
-    private final int numOfMoves;
+    private final int minMoves;
 
     /**
      * Constructor which solves the puzzle, computing
@@ -15,44 +17,29 @@ final class Solver {
      * puzzle using the A* algorithm. Assumes a solution exists.
      */
     public Solver(WorldState initial) {
-        SearchNode end = null;
-        // previously encountered world states
-        Set<SearchNode> history = new HashSet<>();
         // store all search nodes during this process
-        MinPQ<SearchNode> moveSequence = new MinPQ<>(new cc());
+        MinPQ<SearchNode> moveSequence = new MinPQ<>();
         moveSequence.insert(new SearchNode(initial));
         // find the goal using A star tree search
         while (!moveSequence.isEmpty()) {
-            while (history.contains(moveSequence.min())) {
-                moveSequence.delMin();
+            if (moveSequence.min().state.isGoal()) {
+                break;
             }
             // remove search node closest to the goal
             SearchNode sn = moveSequence.delMin();
-            history.add(sn);
-            if (sn.state.isGoal()) {
-                end = sn;
-                break;
-            }
             // add neighbors into the storage
             for (WorldState nbr : sn.state.neighbors()) {
-                SearchNode temp = new SearchNode(nbr, sn);
-                if (!history.contains(temp)) {
-                    moveSequence.insert(temp);
+                if (sn.prev == null || !sn.prev.state.equals(nbr)) {
+                    moveSequence.insert(new SearchNode(nbr, sn));
                 }
             }
         }
-        this.path = end.genPath();
-        this.numOfMoves = end.actualMoves;
+        this.path = moveSequence.min().genPath();
+        this.minMoves = this.path.size() - 1;
     }
 
-    private static class cc implements Comparator<SearchNode> {
-        @Override
-        public int compare(SearchNode o1, SearchNode o2) {
-            return Integer.compare(o1.expectedMoves, o2.expectedMoves);
-        }
-    }
 
-    private static class SearchNode {
+    public static class SearchNode implements Comparable<SearchNode> {
         public WorldState state;
         public int expectedMoves;
         public int actualMoves;
@@ -90,6 +77,11 @@ final class Solver {
             }
             return state.hashCode() & prev.hashCode();
         }
+
+        @Override
+        public int compareTo(SearchNode o) {
+            return this.expectedMoves - o.expectedMoves;
+        }
     }
 
     /**
@@ -97,7 +89,7 @@ final class Solver {
      * at the initial WorldState.
      */
     public int moves() {
-        return this.numOfMoves;
+        return this.minMoves;
     }
 
     /**

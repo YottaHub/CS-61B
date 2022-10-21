@@ -120,7 +120,6 @@ public class TestSolver {
             int numMoves = i;
             BoardPuzzleSolution bps = new BoardPuzzleSolution(puzzleName, b, numMoves);
             Solver s = new Solver(b);
-            System.out.println(s.solution());
             assertEquals("Wrong number of moves on " + puzzleName, bps.numMoves, s.moves());
         }
     }

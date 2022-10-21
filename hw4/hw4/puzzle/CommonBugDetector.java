@@ -85,7 +85,6 @@ public class CommonBugDetector {
 
         // s.moves() should be 5
         System.out.println("s.moves() should be 5, and your s.moves() is: " + s.moves());
-        System.out.println(s.solution());
 
         AlphabetEasyPuzzle aep = new AlphabetEasyPuzzle('a');
         Solver s3 = new Solver(aep);
