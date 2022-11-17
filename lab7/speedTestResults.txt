@@ -1,0 +1,10 @@
+-------InsertInOrderSpeedTest-------
+class bstmap.ULLMap: 6.43 sec
+class bstmap.BSTMap: 2.02 sec
+Java's Built-in TreeMap: 0.02 sec
+Java's Built-in HashMap: 0.02 sec
+-------InsertRandomSpeedTest--------
+class bstmap.ULLMap: 11.72 sec
+class bstmap.BSTMap: 6.80 sec
+Java's Built-in TreeMap: 6.61 sec
+Java's Built-in HashMap: 7.12 sec
