@@ -8,10 +8,6 @@ import java.util.Map;
  * not draw the output correctly.
  */
 public class Rasterer {
-
-    public Rasterer() {
-    }
-
     /**
      * Takes a user query and finds the grid of images that best matches the query. These
      * images will be combined into one big image (rastered) by the front end. <br>
@@ -50,16 +46,16 @@ public class Rasterer {
         }
         // query box is completely outside of boundary
         if (ullon > MapServer.ROOT_LRLON || lrlon < MapServer.ROOT_ULLON
-                || ullat > MapServer.ROOT_LRLAT || lrlat < MapServer.ROOT_ULLAT) {
+                || ullat < MapServer.ROOT_LRLAT || lrlat > MapServer.ROOT_ULLAT) {
             results.put("query_success", false);
             return results;
         }
         double width = params.get("w");
         double precision = (MapServer.ROOT_ULLON - MapServer.ROOT_LRLON) / MapServer.TILE_SIZE;
-        double LonDPP = (ullon - lrlon) / width;
+        double lonDPP = (ullon - lrlon) / width;
         // calculate depth
         int depth = 0, numOfIntervals = 1;
-        while (precision <= LonDPP) {
+        while (precision <= lonDPP && depth < 7) {
             precision /= 2;
             numOfIntervals *= 2;
             depth++;
@@ -68,14 +64,18 @@ public class Rasterer {
         // calculate four corner grids
         double lonInterval = (MapServer.ROOT_LRLON - MapServer.ROOT_ULLON) / numOfIntervals;
         double latInterval = (MapServer.ROOT_LRLAT - MapServer.ROOT_ULLAT) / numOfIntervals;
-        int lonStart = Math.max(0, (int) Math.floor((ullon - MapServer.ROOT_ULLON) / lonInterval));
-        results.put("raster_ul_lon", MapServer.ROOT_LRLON + lonInterval * lonStart);
-        int lonEnd = Math.min(numOfIntervals, (int) Math.ceil((lrlon - MapServer.ROOT_ULLON) / lonInterval));
-        results.put("raster_lr_lon", MapServer.ROOT_LRLON + lonInterval * (lonEnd - 1));
-        int latStart = Math.max(0, (int) Math.floor((ullat - MapServer.ROOT_ULLAT) / latInterval));
-        results.put("raster_ul_lat", MapServer.ROOT_LRLAT + latInterval * latStart);
-        int latEnd = Math.min(numOfIntervals, (int) Math.ceil((lrlat - MapServer.ROOT_ULLAT) / latInterval));
-        results.put("raster_lr_lat", MapServer.ROOT_LRLAT + latInterval * (latEnd - 1));
+        int lonStart = Math.max(0, (int) Math.floor((ullon
+                - MapServer.ROOT_ULLON) / lonInterval));
+        results.put("raster_ul_lon", MapServer.ROOT_ULLON + lonInterval * lonStart);
+        int lonEnd = Math.min(numOfIntervals, (int) Math.ceil((lrlon
+                - MapServer.ROOT_ULLON) / lonInterval));
+        results.put("raster_lr_lon", MapServer.ROOT_ULLON + lonInterval * lonEnd);
+        int latStart = Math.max(0, (int) Math.floor((ullat
+                - MapServer.ROOT_ULLAT) / latInterval));
+        results.put("raster_ul_lat", MapServer.ROOT_ULLAT + latStart * latInterval);
+        int latEnd = Math.min(numOfIntervals, (int) Math.ceil((lrlat
+                - MapServer.ROOT_ULLAT) / latInterval));
+        results.put("raster_lr_lat", MapServer.ROOT_ULLAT + latInterval * latEnd);
         // form required render grids by row
         String[][] ids = new String[latEnd - latStart][lonEnd - lonStart];
         for (int i = 0; i < lonEnd - lonStart; i++) {
